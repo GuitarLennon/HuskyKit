@@ -7,7 +7,7 @@
             => new (expression, AsAlias, aggregate, order);
 
         public static SqlColumn OrderBy(this string columnName, int Index, OrderDirection order = OrderDirection.ASC)
-            => new(columnName, columnName, false, new() { Index = Index, Direction = order, Column = columnName });
+            => new(columnName, columnName, false, new() { Index = Index, Direction = order });
 
 
         public static SqlQueryColumn AsColumn(this SqlBuilder sqlBuilder,

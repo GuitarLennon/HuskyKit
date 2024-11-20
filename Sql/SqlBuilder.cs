@@ -699,10 +699,10 @@ namespace HuskyKit.Sql
         {
             var withTables = GetWithTableBuilders().ToHashSet();
 
+            withTables.Remove(this);
+
             if (withTables.Count == 0)
                 return;
-
-            withTables.Remove(this);
 
             sb.Append("\n\n;WITH ");
 
