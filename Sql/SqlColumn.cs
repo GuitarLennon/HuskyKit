@@ -35,6 +35,16 @@ namespace HuskyKit.Sql
             Aggregate = aggregate;
         }
 
+        private SqlColumn()
+        {
+            Expression = "[{0}].*";
+        }
+
+        public static SqlColumn All()
+        {
+            return new();
+        }
+
         internal SqlColumn(object? expression, string AsAlias, bool aggregate = false, ColumnOrder order = default)
         {
             raw_name = null;
@@ -63,6 +73,7 @@ namespace HuskyKit.Sql
         {
             return string.IsNullOrWhiteSpace(Name) ? Expression : $"{Expression} AS {Name}";
         }
+
 
         public override string GetSelectExpression(string TableAlias, SqlBuilder.BuildOptions options)
             =>

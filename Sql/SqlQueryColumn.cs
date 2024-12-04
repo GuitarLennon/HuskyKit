@@ -6,21 +6,20 @@ namespace HuskyKit.Sql
     {
         public SqlBuilder SqlBuilder { get; set; }
 
-        public bool ForJson { get; set; }
+        public ForJsonOptions? ForJson { get; set; }
 
         public SqlQueryColumn(
             SqlBuilder sqlBuilder, 
             string AsAlias, 
-            bool aggregate = false, 
             ColumnOrder order = default,
-            bool forJson = false
+            ForJsonOptions? forJson = null
             ) 
         {
             SqlBuilder = sqlBuilder;
             raw_name = null;
             show_name = AsAlias;
             Order = order;
-            Aggregate = aggregate;
+            Aggregate = false;
             ForJson = forJson;
         }
 
