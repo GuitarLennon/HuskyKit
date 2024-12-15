@@ -8,11 +8,17 @@ namespace HuskyKit.Sql
 
         public ForJsonOptions? ForJson { get; set; }
 
+        public int? Skip { get; set; }
+
+        public int? Length { get; set; }
+
         public SqlQueryColumn(
             SqlBuilder sqlBuilder, 
             string AsAlias, 
             ColumnOrder order = default,
-            ForJsonOptions? forJson = null
+            ForJsonOptions? forJson = null,
+            int? skip = null,
+            int? length = null
             ) 
         {
             SqlBuilder = sqlBuilder;
@@ -21,6 +27,8 @@ namespace HuskyKit.Sql
             Order = order;
             Aggregate = false;
             ForJson = forJson;
+            Skip = skip;
+            Length = length;
         }
 
 
@@ -32,7 +40,9 @@ namespace HuskyKit.Sql
 
             options.Indent(2);
 
-            sb.AppendLine(SqlBuilder.Build(options.Clone(ForJson)));
+            var _options = options.Clone(ForJson, Skip, Length);
+
+            sb.AppendLine(SqlBuilder.Build(_options));
 
             sb.Append(options.IndentToken);
             

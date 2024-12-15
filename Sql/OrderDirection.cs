@@ -2,6 +2,14 @@
 {
     public struct ColumnOrder()
     {
+        public static implicit operator ColumnOrder(OrderDirection order)
+        {
+            return new()
+            {
+                Direction = order
+            };
+        }
+
         public static implicit operator ColumnOrder(string column)
         {
             return new()

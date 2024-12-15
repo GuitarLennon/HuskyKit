@@ -37,8 +37,18 @@
         public abstract string GetGroupByExpression(string TableAlias, SqlBuilder.BuildOptions options);
 
         public string GetOrderByExpression(string TableAlias, SqlBuilder.BuildOptions options)
-             => Order.Direction != OrderDirection.NONE ? string.Format($"{{{options.IndentToken}}}[{Name}] {Order.Direction}", TableAlias) : $"[{Name}]";
-
+        {
+            var _format = options.IndentToken.Replace("{", "{{").Replace("}", "}}") + $"[{Name}] {Order.Direction}";
+            try
+            {
+                return Order.Direction != OrderDirection.NONE ? string.Format(_format, TableAlias) : $"[{Name}]";
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+                throw;
+            }
+        }
         public abstract string GetSelectExpression(string TableAlias, SqlBuilder.BuildOptions options);
 
         public abstract string GetWhereExpression(string TableAlias, string predicate, SqlBuilder.BuildOptions options);

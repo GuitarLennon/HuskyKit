@@ -11,19 +11,6 @@ namespace HuskyKit.Sql
 {
     public partial class SqlBuilder
     {
-        public SqlBuilder FromThis(string? AsAlias)
-        {
-            return new SqlBuilder(this, AsAlias ?? Alias);
-        }
-
-    }
-
-    public partial class SqlBuilder
-    {
-        public override string ToString()
-        {
-            return Build();
-        }
 
         public static SqlBuilder With(params SqlBuilder[] Subqueries)
         {
@@ -35,11 +22,8 @@ namespace HuskyKit.Sql
             return r;
         }
 
-
-
-
         public static SqlBuilder SelectFrom(
-                (string schema, string table, string? asAlias) FromTable)
+                (string schema, string table, string Alias) FromTable)
         {
             return new SqlBuilder(FromTable);
         }
@@ -65,13 +49,6 @@ namespace HuskyKit.Sql
             };
         }
 
-
-        public SqlBuilder Top(int? top)
-        {
-            Length = top;
-            return this;
-        }
-
         public static SqlBuilder FromColumns(string Alias, params SqlColumnAbstract[] columns)
         {
             var ret = new SqlBuilder(Alias) { };
@@ -81,27 +58,20 @@ namespace HuskyKit.Sql
             return ret;
         }
 
-        public SqlBuilder AsSubquery()
+      
+     
+        public override string ToString()
         {
-            var ret = new SqlBuilder(this, this.Alias);
-
-            return ret;
+            return Build();
         }
 
-        public SqlBuilder AsSubquery(params TableJoin[] joins)
+        public SqlBuilder Top(int? top)
         {
-            var ret = new SqlBuilder(this, "sq");
-
-            if (joins != null && joins.Length != 0)
-                ret.Joins.AddRange(joins);
-
-            return ret;
+            Length = top;
+            return this;
         }
 
-    }
-
-    public partial class SqlBuilder
-    {
+         
 
         public static implicit operator SqlBuilder(SqlColumn[] columns)
         {
@@ -117,9 +87,10 @@ namespace HuskyKit.Sql
 
         internal SqlBuilder(SqlBuilder WithSource, string Alias, params SqlColumn[] columns)
         {
-            this.Alias = Alias;
 
             Table = $"[{WithSource.Alias}]";
+
+            this.Alias = Alias;
 
             WithTables.Add(WithSource);
 
@@ -134,7 +105,7 @@ namespace HuskyKit.Sql
 
         internal SqlBuilder((string Schema, string Name, string? Alias) RawTable)
         {
-            this.Alias = Alias ?? RawTable.Name;
+            this.Alias = RawTable.Alias ?? RawTable.Name;
             Table = $"[{RawTable.Schema}].[{RawTable.Name}]";
         }
 
@@ -156,9 +127,10 @@ namespace HuskyKit.Sql
 
         public int? Skip { get; set; }
 
+
         public string? Table { get; set; }
 
-        public List<SqlColumnAbstract> TableColumns { get; protected set; } = [];
+        public List<SqlColumnAbstract> TableColumns { get; internal set; } = [];
 
         public List<string> WhereConditions { get; } = [];
 
@@ -167,12 +139,12 @@ namespace HuskyKit.Sql
             .Union(TableColumns.Select(x => (Alias, Column: x)));
 
         internal ICollection<SqlBuilder> WithTables { get; } = [];
-       
-      
+
+
 
         public class BuildOptions
         {
-           
+
 
             public int? Skip { get; set; }
 
@@ -209,14 +181,14 @@ namespace HuskyKit.Sql
             }
 
             public BuildOptions Clone(
-                ForJsonOptions? ForJson = null,
+                ForJsonOptions? ForJson,
                 int? Skip = null,
                 int? Length = null
             )
             {
                 var g = (BuildOptions)MemberwiseClone();
                 g.Indentation = Indentation;
-                g.ForJson = ForJson ?? g.ForJson;
+                g.ForJson = ForJson;
                 g.Skip = Skip ?? g.Skip;
                 g.Length = Length ?? g.Length;
                 return g;
@@ -226,7 +198,7 @@ namespace HuskyKit.Sql
         public string Build(BuildOptions? options = default)
         {
             if (!ColumnsWithAlias.Any())
-                throw new InvalidOperationException("No se especificaron columnas que seleccionar");
+                throw new InvalidOperationException($"No se especificaron columnas que seleccionar en [{Table}] [{Alias}]");
 
             options ??= new BuildOptions();
 
@@ -239,7 +211,7 @@ namespace HuskyKit.Sql
 
 
             (string top_sql, string order_sql) =
-                DetermineOffset(options.Clone(Skip: skip, Length: length));
+                DetermineOffset(options.Clone(options.ForJson, Skip: skip, Length: length));
 
             StringBuilder sb = new();
 
@@ -258,8 +230,9 @@ namespace HuskyKit.Sql
             DetermineGroupBy(sb, options);
 
             if (!string.IsNullOrWhiteSpace(order_sql))
-                sb.Append(_indent);
-            sb.Append(order_sql);
+            {
+                sb.Append(order_sql);
+            }
 
             if (options.ForJson.HasValue)
             {
@@ -294,9 +267,9 @@ namespace HuskyKit.Sql
             return returning;
         }
 
-        public string BuildAsJson() 
+        public string BuildAsJson()
             => BuildAsJson(new BuildOptions());
-        
+
 
         public string BuildAsJson(ForJsonOptions options)
             => BuildAsJson(new BuildOptions(), options);
@@ -312,14 +285,7 @@ namespace HuskyKit.Sql
             options ??= new BuildOptions();
             return builder.Build(options);
         }
-         
-        public void GeneralFilter(string filter)
-        {
-            var g = ColumnsWithAlias.Select(x => $"[{x.Alias}].[{x.Column.Name}] LIKE '%{filter}%'")
-                .Aggregate((a, b) => a + " OR " + b);
 
-            WhereConditions.Add($"({g})");
-        }
 
         protected IEnumerable<SqlBuilder> GetWithTableBuilders()
             => WithTables
@@ -333,7 +299,7 @@ namespace HuskyKit.Sql
         )
         {
             //Verifica si existe alguna función de agregación
-            if (!ColumnsWithAlias.Any(x => x.Column.Aggregate))
+            if (!(ColumnsWithAlias.Any(x => x.Column.Aggregate) && ColumnsWithAlias.Any(x => !x.Column.Aggregate)))
                 return;
 
             sb.AppendLine();
@@ -385,9 +351,9 @@ namespace HuskyKit.Sql
                 //pagination
                 if (options.Skip.HasValue)
                     if (options.Length.HasValue)
-                        order_sql += $"{_indent}\tOFFSET {options.Skip.Value} ROWS FETCH NEXT {options.Length.Value} ROWS ONLY";
+                        order_sql += $"\n{_indent}    OFFSET {options.Skip.Value} ROWS FETCH NEXT {options.Length.Value} ROWS ONLY\n";
                     else
-                        order_sql += $"{_indent}\t\tOFFSET {options.Skip.Value} ROWS ";
+                        order_sql += $"\n{_indent}    OFFSET {options.Skip.Value} ROWS\n";
                 else if (options.Length.HasValue)
                     top_sql = $"TOP({options.Length.Value})";
                 else
@@ -401,7 +367,7 @@ namespace HuskyKit.Sql
                     top_sql = $"TOP({options.Length})";
 
             else if (options.Skip.HasValue)
-                order_sql = $"ORDER BY 1 OFFSET {options.Skip.Value} ROWS";
+                order_sql = $"ORDER BY 1 OFFSET {options.Skip.Value} ROWS\n";
 
             return (top_sql, order_sql);
         }
@@ -425,7 +391,7 @@ namespace HuskyKit.Sql
             if (!string.IsNullOrWhiteSpace(top_sql))
             {
                 sb.AppendLine(top_sql);
-                // first = false;
+                //first = false;
             }
 
             foreach (var col in ColumnsWithAlias)
@@ -436,6 +402,7 @@ namespace HuskyKit.Sql
                     sb.Append(_indent);
                     sb.Append(options.IndentationPlacement);
                     sb.Append(options.IndentationPlacement);
+                    //sb.Append(options.IndentationPlacement);
                     sb.Append(',');
                 }
 
@@ -488,11 +455,10 @@ namespace HuskyKit.Sql
                 if (!first)
                 {
                     sb.Append(_indent);
-                    //sb.Append("  WHERE ");
                     sb.Append("   ");
                     sb.Append(" AND ");
                 }
-                sb.AppendLine(condition);
+                sb.AppendLine(string.Format(condition, Alias));
 
                 first = false;
             }
@@ -521,13 +487,16 @@ namespace HuskyKit.Sql
 
                 sb.AppendLine(table.Build(options.Clone(null)));
 
-                sb.AppendLine(")");
+                sb.Append(")");
                 /*
                 if (!first)
                     sb.AppendLine();
                 */
                 first = false;
             }
+
+            sb.AppendLine();
+
         }
     }
 }

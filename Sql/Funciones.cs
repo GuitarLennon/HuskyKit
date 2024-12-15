@@ -12,6 +12,9 @@ namespace HuskyKit.Sql
         public static object GetDate() => "GetDate()";
 
         public static object Count() => "Count(*)";
+
+        public static SqlColumn Count(string alias = "Count") => "Count(*)".As(alias, true);
+
         public static object Round(this object expression, int precision) => $"Round({expression}, {precision})";
         public static object Convert(this object expression, string dbType) => $"Convert({dbType}, {expression})";
         public static SqlColumn StringAgg(this object expression, string separator, string alias)
