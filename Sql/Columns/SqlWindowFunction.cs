@@ -1,13 +1,15 @@
-﻿namespace HuskyKit.Sql
+﻿using HuskyKit.Sql;
+
+namespace HuskyKit.Sql.Columns
 {
     /// <summary>
     /// Representa una función de ventana SQL y genera expresiones SQL para SELECT, GROUP BY, y otras cláusulas.
     /// </summary>
-    public class WindowFunctionBuilder(string function) : SqlColumnAbstract
+    public class WindowFunctionBuilder(string function) : ISqlColumn
     {
         private readonly string _function = function ?? throw new ArgumentNullException(nameof(function));
         private readonly List<string> _partitionBy = [];
-        private readonly List<ColumnOrder> _orderBy = [];
+        private readonly List<OrderByClause> _orderBy = [];
 
         /// <summary>
         /// Define las columnas para la cláusula PARTITION BY.
@@ -25,11 +27,11 @@
         /// </summary>
         /// <param name="columns">Una lista de columnas o tuplas (columna, dirección).</param>
         /// <returns>El mismo <see cref="WindowFunctionBuilder"/> para encadenamiento.</returns>
-        public WindowFunctionBuilder OrderBy(params ColumnOrder[] columns)
+        public WindowFunctionBuilder OrderBy(params OrderByClause[] columns)
         {
             foreach (var column in columns)
             {
-                _orderBy.Add(column);   
+                _orderBy.Add(column);
             }
             return this;
         }
@@ -46,41 +48,24 @@
         }
 
         /// <inheritdoc />
-        public override string GetSqlExpression(string TableAlias, BuildContext context)
+        public override string GetSqlExpression(BuildContext context)
         {
             var partitionClause = _partitionBy.Count != 0
                 ? $"PARTITION BY {string.Join(", ", _partitionBy.Select(x => $"[{x}]"))} "
                 : "";
 
             var orderClause = _orderBy.Count != 0
-                ? $"ORDER BY {string.Join(", ", _orderBy.Select(x => $"[{x.Column}] {x.Direction}"))} "
+                ? $"ORDER BY {string.Join(", ", _orderBy.Select(x => $"[{x.Expression}] {x.Direction}"))} "
                 : "";
 
             return $"{_function}() OVER ({partitionClause}{orderClause.TrimEnd()})";
         }
 
         /// <inheritdoc />
-        public override string GetGroupByExpression(string TableAlias, BuildContext context)
+        public override string GetSelectExpression(BuildContext context)
         {
-            throw new NotSupportedException("GROUP BY is not applicable for window functions.");
+            return $"{GetSqlExpression(context)} AS [{Name}]";
         }
 
-        /// <inheritdoc />
-        public override string GetOrderByExpression(string TableAlias, BuildContext context)
-        {
-            throw new NotSupportedException("ORDER BY is not directly applicable for window functions.");
-        }
-
-        /// <inheritdoc />
-        public override string GetSelectExpression(string TableAlias, BuildContext context)
-        {
-            return $"{GetSqlExpression(TableAlias, context)} AS [{Name}]";
-        }
-
-        /// <inheritdoc />
-        public override string GetWhereExpression(string TableAlias, string predicate, BuildContext context)
-        {
-            throw new NotSupportedException("WHERE is not applicable for window functions.");
-        }
     }
 }

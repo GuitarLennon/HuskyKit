@@ -1,12 +1,13 @@
 ﻿using System.Linq.Expressions;
 using System.Text;
 
-namespace HuskyKit.Sql
+namespace HuskyKit.Sql.Columns
 {
+
     /// <summary>
     /// Representa una columna en una consulta SQL, proporcionando soporte para alias, agregados, y ordenación.
     /// </summary>
-    public class SqlColumn : SqlColumnAbstract
+    public class SqlColumn : ISqlColumn
     {
         /// <summary>
         /// Inicializa una nueva instancia de la clase <see cref="SqlColumn"/> utilizando solo el nombre original de la columna.
@@ -26,12 +27,12 @@ namespace HuskyKit.Sql
         /// <param name="AsAlias">El alias que se utilizará para la columna en la consulta SQL.</param>
         /// <param name="aggregate">Indica si la columna es una expresión de agregado (por ejemplo, SUM, AVG).</param>
         /// <param name="order">El orden de la columna en la cláusula ORDER BY.</param>
-        public SqlColumn(string rawName, string AsAlias, bool aggregate = false, ColumnOrder order = default)
+        public SqlColumn(string rawName, string AsAlias, bool aggregate = false, ColumnOrder? order = default)
         {
             raw_name = rawName;
             show_name = AsAlias;
             Expression = $"[{{0}}].[{rawName}]";
-            Order = order;
+            Order.Apply(order);
             Aggregate = aggregate;
         }
 
@@ -42,22 +43,13 @@ namespace HuskyKit.Sql
         /// <param name="AsAlias">El alias que se utilizará para la columna en la consulta SQL.</param>
         /// <param name="aggregate">Indica si la columna es una expresión de agregado.</param>
         /// <param name="order">El orden de la columna en la cláusula ORDER BY.</param>
-        internal SqlColumn(object? expression, string AsAlias, bool aggregate = false, ColumnOrder order = default)
+        internal SqlColumn(object? expression, string AsAlias, bool aggregate = false, ColumnOrder? order = default)
         {
             raw_name = null;
             show_name = AsAlias;
             Aggregate = aggregate;
-            Order = order;
-            Expression = expression?.ToString() ?? $"null";
-        }
-
-        /// <summary>
-        /// Obtiene una instancia especial que representa todas las columnas (`SELECT *`).
-        /// </summary>
-        /// <returns>Una instancia de <see cref="SqlColumn"/> que selecciona todas las columnas.</returns>
-        public static SqlColumn All()
-        {
-            return new("*");
+            Order.Apply(order);
+            Expression = (expression?.ToString() ?? $"null") + $" AS [{AsAlias}]";
         }
 
         /// <summary>
@@ -71,10 +63,10 @@ namespace HuskyKit.Sql
         /// <param name="TableAlias">El alias de la tabla al que pertenece la columna.</param>
         /// <param name="context">El contexto de construcción de la consulta SQL.</param>
         /// <returns>Una cadena que representa la expresión SQL para la cláusula SELECT.</returns>
-        public override string GetSelectExpression(string TableAlias, BuildContext context)
-            => (show_name == raw_name)
-                ? GetSqlExpression(TableAlias, context)
-                : $"{GetSqlExpression(TableAlias, context)} AS [{Name}]";
+        public override string GetSelectExpression(BuildContext context)
+            => show_name == raw_name
+                ? GetSqlExpression(context)
+                : $"{GetSqlExpression(context)} AS [{Name}]";
 
         /// <summary>
         /// Genera la expresión SQL de la columna para la cláusula GROUP BY.
@@ -82,8 +74,8 @@ namespace HuskyKit.Sql
         /// <param name="TableAlias">El alias de la tabla al que pertenece la columna.</param>
         /// <param name="context">El contexto de construcción de la consulta SQL.</param>
         /// <returns>Una cadena que representa la expresión SQL para la cláusula GROUP BY.</returns>
-        public override string GetGroupByExpression(string TableAlias, BuildContext context)
-            => string.Format(Expression, TableAlias);
+        public override string GetGroupByExpression(BuildContext context)
+            => string.Format(Expression, context.CurrentTableAlias);
 
         /// <summary>
         /// Genera la expresión SQL de la columna para la cláusula WHERE.
@@ -92,8 +84,8 @@ namespace HuskyKit.Sql
         /// <param name="predicate">El predicado a aplicar en la condición (por ejemplo, `= 1`, `LIKE '%value%'`).</param>
         /// <param name="context">El contexto de construcción de la consulta SQL.</param>
         /// <returns>Una cadena que representa la expresión SQL para la cláusula WHERE.</returns>
-        public override string GetWhereExpression(string TableAlias, string predicate, BuildContext context)
-            => $"CONVERT(varchar, {string.Format(Expression, TableAlias)}) {predicate}";
+        public override string GetWhereExpression(BuildContext context)
+            => $"CONVERT(varchar, {string.Format(Expression, context.CurrentTableAlias)})";
 
         /// <summary>
         /// Genera la expresión SQL de la columna.
@@ -101,8 +93,8 @@ namespace HuskyKit.Sql
         /// <param name="TableAlias">El alias de la tabla al que pertenece la columna.</param>
         /// <param name="context">El contexto de construcción de la consulta SQL.</param>
         /// <returns>Una cadena que representa la expresión SQL de la columna.</returns>
-        public override string GetSqlExpression(string TableAlias, BuildContext context)
-            => string.Format(Expression, TableAlias);
+        public override string GetSqlExpression(BuildContext context)
+            => string.Format(Expression, context.CurrentTableAlias);
 
         /// <summary>
         /// Devuelve una representación en cadena de la columna.
@@ -115,7 +107,7 @@ namespace HuskyKit.Sql
                 : $"{Expression} AS {Name}";
         }
 
-      
+
 
         /// <summary>
         /// Creates a SQL column with an alias, optional aggregation, and ordering.

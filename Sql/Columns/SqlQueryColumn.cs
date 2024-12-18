@@ -1,11 +1,13 @@
-﻿using System.Text;
+﻿using HuskyKit.Extensions;
+using HuskyKit.Sql.Sources;
+using System.Text;
 
-namespace HuskyKit.Sql
+namespace HuskyKit.Sql.Columns
 {
     /// <summary>
     /// Represents a column derived from a SQL subquery, providing methods to generate SQL expressions.
     /// </summary>
-    public class SqlQueryColumn : SqlColumnAbstract
+    public class SqlQueryColumn : ISqlColumn
     {
         /// <summary>
         /// Gets or sets the <see cref="SqlBuilder"/> used to build the subquery for this column.
@@ -39,7 +41,7 @@ namespace HuskyKit.Sql
         public SqlQueryColumn(
             SqlBuilder sqlBuilder,
             string AsAlias,
-            ColumnOrder order = default,
+            ColumnOrder? order = default,
             ForJsonOptions? forJson = null,
             int? skip = null,
             int? length = null
@@ -48,7 +50,8 @@ namespace HuskyKit.Sql
             SqlBuilder = sqlBuilder;
             raw_name = null;
             show_name = AsAlias;
-            Order = order;
+            Order.Apply(order);
+
             Aggregate = false;
             ForJson = forJson;
             Skip = skip;
@@ -61,36 +64,29 @@ namespace HuskyKit.Sql
         /// <param name="TableAlias">The alias of the table containing the column.</param>
         /// <param name="context">The build context for constructing the query.</param>
         /// <returns>The SQL expression for the column.</returns>
-        public override string GetSqlExpression(string TableAlias, BuildContext context)
+        public override string GetSqlExpression(BuildContext context)
         {
             var sb = new StringBuilder();
 
             sb.AppendLine("(");
 
+            sb.DebugComment($"{nameof(SqlQueryColumn)}.{nameof(GetSqlExpression)} (CurrentTableAlias:{context.CurrentTableAlias}, Name:{Name})");
+
             var options = context.CurrentOptions.Clone(ForJson, Skip, Length);
 
             context.Indent(options);
 
-            sb.AppendLine(SqlBuilder.Build(context));
-
-            sb.Append(context.IndentToken);
-
-            sb.Append(')');
+            sb.Append(SqlBuilder.Build(context)).Replace("\n", "\n   ");
 
             context.Unindent();
 
-            return sb.ToString();
-        }
+            sb.Append(context.IndentToken);
 
-        /// <summary>
-        /// Returns an empty string as grouping is not applicable for subquery columns.
-        /// </summary>
-        /// <param name="TableAlias">The alias of the table containing the column.</param>
-        /// <param name="options">The build context for constructing the query.</param>
-        /// <returns>An empty string.</returns>
-        public override string GetGroupByExpression(string TableAlias, BuildContext options)
-        {
-            return string.Empty;
+            sb.DebugComment($"-->{nameof(SqlQueryColumn)}.{nameof(GetSqlExpression)}");
+
+            sb.Append($") AS [{Name}]");
+
+            return sb.ToString();
         }
 
         /// <summary>
@@ -100,7 +96,7 @@ namespace HuskyKit.Sql
         /// <param name="predicate">The predicate to apply in the WHERE clause.</param>
         /// <param name="context">The build context for constructing the query.</param>
         /// <returns>The WHERE SQL expression for the column.</returns>
-        public override string GetWhereExpression(string TableAlias, string predicate, BuildContext context)
+        public override string GetWhereExpression(BuildContext context)
         {
             context.Indent(context.CurrentOptions.Clone(ForJson));
 
@@ -117,9 +113,9 @@ namespace HuskyKit.Sql
         /// <param name="TableAlias">The alias of the table containing the column.</param>
         /// <param name="context">The build context for constructing the query.</param>
         /// <returns>The SELECT SQL expression for the column.</returns>
-        public override string GetSelectExpression(string TableAlias, BuildContext context)
+        public override string GetSelectExpression(BuildContext context)
             =>
-            (show_name == raw_name) ? GetSqlExpression(TableAlias, context) :
-            $"{GetSqlExpression(TableAlias, context)} AS [{Name}]";
+            show_name == raw_name ? GetSqlExpression(context) :
+            $"{GetSqlExpression(context)} AS [{Name}]";
     }
 }

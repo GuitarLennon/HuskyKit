@@ -11,7 +11,7 @@ namespace HuskyKit.Datatables
     {
         //[FromForm()]
         //[FromQuery]
-        public bool Regex { get; set; }
+        public bool? Regex { get; set; }
 
         //[FromForm()]
         //[FromQuery]

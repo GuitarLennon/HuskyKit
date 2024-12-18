@@ -1,4 +1,6 @@
-﻿namespace HuskyKit.Sql
+﻿using HuskyKit.Sql.Sources;
+
+namespace HuskyKit.Sql
 {
     /// <summary>
     /// Represents the context in which a SQL query is being built, including options, depth, and indentation.
@@ -8,7 +10,7 @@
         /// <summary>
         /// Placeholder for indentation in SQL queries.
         /// </summary>
-        public const string IndentationPlacement = "{indent}";
+        public const string IndentationPlacement = "{}";
 
         /// <summary>
         /// Stack of build options used during query construction.
@@ -18,22 +20,23 @@
         /// <summary>
         /// Gets the current build options from the stack.
         /// </summary>
-        public BuildOptions CurrentOptions => OptionList.Last();
+        public BuildOptions CurrentOptions => OptionList.Peek();
 
         /// <summary>
         /// Gets the current depth of the query context, based on the number of options in the stack.
         /// </summary>
-        public int Depth => OptionList.Count;
+        public int Depth => OptionList.Count ;
 
         /// <summary>
         /// Token used for indentation in SQL queries, repeated based on depth.
         /// </summary>
-        public string IndentToken => string.Concat(Enumerable.Repeat(IndentationPlacement, Depth));
+        public string IndentToken => 
+            string.Concat(Enumerable.Repeat(IndentationPlacement, Depth));
 
         /// <summary>
         /// Keeps track of tables that have already been rendered in the query.
         /// </summary>
-        public HashSet<ISqlSource> RenderedTables { get; protected set; } = [];
+        public HashSet<SqlBuilder> RenderedTables { get; protected set; } = [];
 
         /// <summary>
         /// Gets or sets the current table alias being used in the query.
@@ -54,7 +57,7 @@
         /// <summary>
         /// Increases the indentation level by pushing the current options onto the stack.
         /// </summary>
-        public void Indent() => Indent(CurrentOptions);
+        public void Indent() => Indent(CurrentOptions.Clone(null));
 
         /// <summary>
         /// Increases the indentation level using the specified options.

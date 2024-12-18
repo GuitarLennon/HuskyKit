@@ -1,4 +1,4 @@
-﻿namespace HuskyKit.Sql
+﻿namespace HuskyKit.Sql.Sources
 {
     /// <summary>
     /// Representa los diferentes tipos de JOIN que se pueden utilizar en consultas SQL.

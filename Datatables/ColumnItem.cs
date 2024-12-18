@@ -5,52 +5,57 @@
 
 //using Microsoft.AspNetCore.Mvc;
 
-using HuskyKit.Sql;
+using HuskyKit.Sql.Columns;
 
 namespace HuskyKit.Datatables
 {
     public class ColumnItem
     {
-        public SqlColumn GetColumn(OrderItem? order)
+        public SqlColumn GetColumn(bool useOrder = true)
         {
-
             ColumnOrder? columnOrder = null;
 
-            if (order != null && order.ColumnIx.HasValue)
+            if (useOrder && Order != null && Order.Column.HasValue)
             {
-                columnOrder = new()
-                {
-                    Index = order.ColumnIx.Value,
-                    Direction = order.Dir is null ? OrderDirection.NONE : order.Dir.Equals("desc") ? OrderDirection.DESC : OrderDirection.ASC
-                };
+                columnOrder = new(
+                    Order.Column.Value,
+                    Order.Direction 
+                );
             }
-    
+
+            var ex = new InvalidOperationException(nameof(Name) + " and " + nameof(Data) + " has not a value");
+
+            var rawName = string.IsNullOrWhiteSpace(Name) ?
+                            string.IsNullOrWhiteSpace(Data) ?
+                                throw ex : Data : Name;
+
+            var rawData = string.IsNullOrWhiteSpace(Data) ?
+                            string.IsNullOrWhiteSpace(Name) ?
+                                throw ex : Name : Data;
+
             var ret = new SqlColumn(
-                Name ?? Data ?? throw new ArgumentNullException(nameof(Name)),
-                Name ?? Data ?? throw new ArgumentNullException(nameof(Name)),
+                rawData,
+                rawName,
                 false,
-                columnOrder ?? new()
+                columnOrder 
             );
              
 
             return ret;
         }
 
-        //[FromForm()]
-        //[FromQuery]
         public string? Data { get; set; }
 
-        //[FromForm()]
-        //[FromQuery]
         public string? Name { get; set; }
 
-        //[FromForm()]
-        //[FromQuery]
         public SearchItem Search { get; set; } = new();
 
-        //[FromForm()]
-        //[FromQuery]
         public bool Searchable { get; set; }
+
+        /// <summary>
+        /// Order item for this column
+        /// </summary>
+        public OrderItem? Order { get; set; }
 
         public override string ToString()
         {

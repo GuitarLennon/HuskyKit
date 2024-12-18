@@ -1,4 +1,7 @@
-﻿namespace HuskyKit.Sql
+﻿using HuskyKit.Sql.Columns;
+using HuskyKit.Sql.Sources;
+
+namespace HuskyKit.Sql
 {
     /// <summary>
     /// Proporciona una colección de funciones SQL utilizables dentro de <see cref="SqlBuilder"/>.
@@ -62,6 +65,57 @@
             var jsonExpression = $"'{string.Join(", ", jsonParts)}'";
             return jsonExpression.As(alias, false);
         }
+
+        /// <summary>
+        /// Genera una columna SQL que contiene un objeto JSON basado en las columnas proporcionadas.
+        /// </summary>
+        /// <param name="columns">Array de nombres de columnas.</param>
+        /// <param name="alias">Alias de la columna generada.</param>
+        /// <param name="aggregate">Indica si la expresión es agregada.</param>
+        /// <returns>Un <see cref="SqlColumn"/> con la expresión JSON.</returns>
+        public static SqlColumn JsonObject(string[] columns, string alias, bool aggregate = false)
+        {
+            var jsonExpression = JsonObject(columns);
+            return jsonExpression.As(alias, aggregate);
+        }
+
+
+        public static string JsonObject(Dictionary<string, string> columns)
+        {
+            var r =
+            columns
+                .Select((x, i) => $"\n'{(i == 0 ? "" : ",")}\"{x.Key}\":' + COALESCE(CONVERT(VARCHAR(MAX), [{x.Value}]), 'null')  + ")
+                .Aggregate("", (a, b) => a + " " + b);
+
+            var r2 = $"'{{{{' + {r} + '}}}}'";
+
+            return r2;
+        }
+
+        /// <summary>
+        /// Genera una expresión SQL para construir un objeto JSON donde cada columna se utiliza tanto como clave como valor.
+        /// </summary>
+        /// <param name="columns">Array de nombres de columnas.</param>
+        /// <returns>Una cadena con la expresión SQL que genera el objeto JSON.</returns>
+        public static string JsonObject(string[] columns)
+        {
+            if (columns == null || columns.Length == 0)
+                throw new ArgumentException("Columns array cannot be null or empty.", nameof(columns));
+
+            return JsonObject(columns.ToDictionary(x => x, x => x));
+        }
+
+
+        public static SqlColumn JsonKeyObject(string Key, object expression, string alias)
+        {
+            var r = $"String_agg('\"' + CONVERT(VARCHAR(MAX), [{Key}]) + '\": ' + {expression}, ', ')";
+
+            var r2 = $"'{{{{' + {r} + '}}}}'";
+
+            return r2.As(alias, true);
+        }
+
+
 
         /// <summary>
         /// Genera una expresión `CASE` para asignar índices basados en el valor de una columna.
@@ -173,6 +227,14 @@
             var expressionList = string.Join(", ", expressions.Select(e => $"[{e}]"));
             return $"COALESCE({expressionList})".As(alias, false);
         }
+
+        /*
+        public static SqlColumn Case(string @default, params (string condition, string result)[] cases)
+        {
+            return new SqlColumn($"CASE {string.Concat(cases.Select(x => $"").ToArray())}" )
+        }
+        */
+
 
     }
 }

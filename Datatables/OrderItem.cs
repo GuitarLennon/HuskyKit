@@ -5,19 +5,26 @@
 
 //using Microsoft.AspNetCore.Mvc;
 
+using HuskyKit.Sql;
+
 namespace HuskyKit.Datatables
 {
     public class OrderItem
     {
-        //[FromForm()]
-        //[FromQuery]
-        public string? Column { get; set; }
+        public int? Column { get; set; }
 
-        public int? ColumnIx => int.TryParse(Column, out int ix) ? ix : null;
-
-        //[FromForm()]
-        //[FromQuery]
         public string? Dir { get; set; }
+
+
+        public string? ColumnName { get; set; }
+
+        public OrderDirection Direction =>
+            Dir switch
+            {
+                "asc" => OrderDirection.ASC,
+                "desc" => OrderDirection.DESC,
+                _ => OrderDirection.NONE
+            };
 
         public override int GetHashCode()
         {

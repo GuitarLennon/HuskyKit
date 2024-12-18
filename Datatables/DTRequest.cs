@@ -3,36 +3,41 @@
   Investigación UTC
 */
 
-//using Microsoft.AspNetCore.Mvc;
 
 namespace HuskyKit.Datatables
 {
     public class DTRequest
     {
-        //[FromForm()]
-        //[FromQuery]
+        public DTRequest() { }
+
         public ColumnItem[] Columns { get; set; } = [];
 
-        //[FromForm()]
-        //[FromQuery]
-        public int Draw { get; set; }
+        public int? Draw { get; set; } 
 
-        //[FromForm()]
-        //[FromQuery]
         public int? Length { get; set; } = -1;
 
-        //[FromForm()]
-        //[FromQuery]
         public OrderItem[] Order { get; set; } = [];
 
-        //[FromForm()]
-        //[FromQuery]
         public SearchItem Search { get; set; } = new();
 
-        //[FromForm()]
-        //[FromQuery]
         public int? Start { get; set; }
 
+        public void Refresh()
+        {
+            foreach (var order in Order)
+            {
+                if (order.Column.HasValue)
+                {
+
+                    var other = Columns[order.Column.Value];
+                    order.ColumnName = other.Name;
+
+                    order.ColumnName = other.Name ?? other.Data;
+
+                    other.Order = order;
+                }
+            }
+        }
 
         public override int GetHashCode()
         {

@@ -1,4 +1,6 @@
-﻿namespace HuskyKit.Sql
+﻿using HuskyKit.Sql.Columns;
+
+namespace HuskyKit.Sql.Sources
 {
     /// <summary>
     /// Represents a join between tables in an SQL query, including the join type, target table, and optional columns.
@@ -13,7 +15,7 @@
         /// <param name="alias">The alias for the target table. If null, a hash code is used as the alias.</param>
         /// <param name="predicate">The ON condition for the join.</param>
         /// <param name="columns">Optional columns to include in the join.</param>
-        public TableJoin(JoinTypes joinTypes, string qualifiedTarget, string? alias = null, string? predicate = null, IEnumerable<SqlColumnAbstract>? columns = null)
+        public TableJoin(JoinTypes joinTypes, string qualifiedTarget, string? alias = null, string? predicate = null, IEnumerable<ISqlColumn>? columns = null)
         {
             JoinType = joinTypes;
             Target = qualifiedTarget;
@@ -31,7 +33,7 @@
         /// <param name="alias">The alias for the target table. If null, the table name is used as the alias.</param>
         /// <param name="predicate">The ON condition for the join.</param>
         /// <param name="columns">Optional columns to include in the join.</param>
-        public TableJoin(JoinTypes joinTypes, (string Schema, string Name) rawTable, string? alias = null, string? predicate = null, IEnumerable<SqlColumnAbstract>? columns = null)
+        public TableJoin(JoinTypes joinTypes, (string Schema, string Name) rawTable, string? alias = null, string? predicate = null, IEnumerable<ISqlColumn>? columns = null)
             : this(joinTypes, $"[{rawTable.Schema}].[{rawTable.Name}]", alias ?? rawTable.Name, predicate, columns)
         {
         }
@@ -44,7 +46,7 @@
         /// <summary>
         /// Gets the list of columns included in the join.
         /// </summary>
-        public List<SqlColumnAbstract> Columns { get; protected set; } = new();
+        public List<ISqlColumn> Columns { get; protected set; } = new();
 
         /// <summary>
         /// Generates the SQL expression for the join, including the JOIN type and ON condition.
