@@ -1,9 +1,11 @@
-﻿namespace HuskyKit.Sql.Columns
+﻿using HuskyKit.Sql.Sources;
+
+namespace HuskyKit.Sql.Columns
 {
     /// <summary>
     /// Abstract class representing a SQL column, providing methods for generating SQL expressions.
     /// </summary>
-    public abstract class ISqlColumn
+    public abstract class ISqlColumn : ISqlExpression
     {
         /// <summary>
         /// Implicitly converts a string to a SqlColumnAbstract instance.

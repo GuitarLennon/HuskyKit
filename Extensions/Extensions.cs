@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,7 +10,7 @@ namespace HuskyKit.Extensions
     public static class Extensions
     {
 #if DEBUG
-        public static bool Debug { get; set; } = true;
+        public static bool Debug { get; set; } = false;
 #else
         public static bool Debug { get; set; } = false;
 #endif
@@ -37,7 +38,6 @@ namespace HuskyKit.Extensions
 
             return sb;
         }
-
         private static string GetCurrentIndentation(StringBuilder sb)
         {
             // Si no hay contenido, no hay indentación

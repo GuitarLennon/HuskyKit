@@ -1,4 +1,5 @@
 ﻿using HuskyKit.Sql.Sources;
+using System.Linq.Expressions;
 
 namespace HuskyKit.Sql
 {
@@ -15,12 +16,12 @@ namespace HuskyKit.Sql
         /// <summary>
         /// Stack of build options used during query construction.
         /// </summary>
-        public Stack<BuildOptions> OptionList { get; } = new Stack<BuildOptions>([options]);
+        public Stack<(string tableName, BuildOptions options)> OptionList { get; } = new ([(string.Empty, options)]);
 
         /// <summary>
         /// Gets the current build options from the stack.
         /// </summary>
-        public BuildOptions CurrentOptions => OptionList.Peek();
+        public BuildOptions CurrentOptions => OptionList.Peek().options;
 
         /// <summary>
         /// Gets the current depth of the query context, based on the number of options in the stack.
@@ -41,31 +42,40 @@ namespace HuskyKit.Sql
         /// <summary>
         /// Gets or sets the current table alias being used in the query.
         /// </summary>
-        public string? CurrentTableAlias { get; private set; }
+        public string? CurrentTableAlias => OptionList.Peek().tableName;
 
+        public IEnumerable<string> TableAlias => OptionList.Select(x => x.tableName);
+        // OptionList.Count < 2 ? null :
+        // OptionList.ElementAt(1).tableName;
+
+
+        /*
         /// <summary>
         /// Sets the current table alias for the context.
         /// </summary>
         /// <param name="currentTableAlias">The alias of the table to set.</param>
         /// <returns>The updated BuildContext instance.</returns>
-        public BuildContext SetTable(string currentTableAlias)
+        public BuildContext SetCurrentTable(string currentTableAlias)
         {
             CurrentTableAlias = currentTableAlias;
             return this;
         }
+        */
 
         /// <summary>
         /// Increases the indentation level by pushing the current options onto the stack.
         /// </summary>
-        public void Indent() => Indent(CurrentOptions.Clone(null));
+        public void Indent(string currentTableAlias) => Indent(currentTableAlias, CurrentOptions.Clone(null));
 
         /// <summary>
         /// Increases the indentation level using the specified options.
         /// </summary>
         /// <param name="options">The options to push onto the stack.</param>
-        public void Indent(BuildOptions options)
+        public void Indent(string currentTableAlias, BuildOptions options)
         {
-            OptionList.Push(options);
+            if(string.IsNullOrWhiteSpace(currentTableAlias)) 
+                throw new ArgumentNullException(nameof(currentTableAlias)); 
+            OptionList.Push((currentTableAlias, options));
         }
 
         /// <summary>

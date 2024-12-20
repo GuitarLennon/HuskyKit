@@ -1,83 +1,114 @@
 ﻿using HuskyKit.Sql.Columns;
+using System.Text;
 
 namespace HuskyKit.Sql.Sources
 {
+
+    public class PredicateClause(string predicate) : ISqlExpression
+    {
+        public virtual string Predicate => predicate;
+
+        public string GetSqlExpression(BuildContext context)
+        {
+            return predicate;
+        }
+    }
+
+    public class DynamicPredicate(
+        Func<SqlBuilder, IEnumerable<ISqlColumn>> LeftHand,
+        Func<SqlBuilder, IEnumerable<ISqlColumn>> RightHand
+    ) : ISqlExpression
+    {
+        public string GetSqlExpression(BuildContext context)
+        {
+            var left = RightHand(context.RenderedTables.First(x => x.Alias == context.TableAlias.ElementAt(1)));
+            var right = LeftHand(context.RenderedTables.First(x => x.Alias == context.CurrentTableAlias));
+            List<string> predicates = [];
+
+            if (left.Count() != right.Count())
+                throw new InvalidOperationException("Diferente número de columnas");
+
+            for (var i = 0; i < left.Count(); i++)
+            {
+                predicates.Add($"{left.ElementAt(i).GetSqlExpression(context)} AND {right.ElementAt(i).GetSqlExpression(context)}");
+            }
+
+            return string.Join(" AND ", [.. predicates]);
+        }
+    }
+
     /// <summary>
     /// Represents a join between tables in an SQL query, including the join type, target table, and optional columns.
     /// </summary>
-    public class TableJoin
+    public class TableJoin : ISqlExpression
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="TableJoin"/> class.
+        /// Gets or sets the ON condition for the join.
         /// </summary>
-        /// <param name="joinTypes">The type of join (e.g., INNER, LEFT).</param>
-        /// <param name="qualifiedTarget">The fully qualified name of the target table (e.g., [Schema].[Table]).</param>
-        /// <param name="alias">The alias for the target table. If null, a hash code is used as the alias.</param>
-        /// <param name="predicate">The ON condition for the join.</param>
-        /// <param name="columns">Optional columns to include in the join.</param>
-        public TableJoin(JoinTypes joinTypes, string qualifiedTarget, string? alias = null, string? predicate = null, IEnumerable<ISqlColumn>? columns = null)
-        {
-            JoinType = joinTypes;
-            Target = qualifiedTarget;
-            Predicate = predicate;
-            Alias = alias ?? GetHashCode().ToString();
-            if (columns != null)
-                Columns.AddRange(columns);
-        }
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="TableJoin"/> class using a schema and table name.
-        /// </summary>
-        /// <param name="joinTypes">The type of join (e.g., INNER, LEFT).</param>
-        /// <param name="rawTable">A tuple containing the schema and table name.</param>
-        /// <param name="alias">The alias for the target table. If null, the table name is used as the alias.</param>
-        /// <param name="predicate">The ON condition for the join.</param>
-        /// <param name="columns">Optional columns to include in the join.</param>
-        public TableJoin(JoinTypes joinTypes, (string Schema, string Name) rawTable, string? alias = null, string? predicate = null, IEnumerable<ISqlColumn>? columns = null)
-            : this(joinTypes, $"[{rawTable.Schema}].[{rawTable.Name}]", alias ?? rawTable.Name, predicate, columns)
-        {
-        }
+        public ISqlExpression Predicate { get; set; }
 
         /// <summary>
         /// Gets or sets the alias for the target table.
         /// </summary>
-        public string Alias { get; set; }
+        public string Alias => SqlSource.Alias;
+
+        public ISqlSource SqlSource { get; set; }
+
 
         /// <summary>
         /// Gets the list of columns included in the join.
         /// </summary>
-        public List<ISqlColumn> Columns { get; protected set; } = new();
-
-        /// <summary>
-        /// Generates the SQL expression for the join, including the JOIN type and ON condition.
-        /// </summary>
-        /// <param name="fromAlias">The alias of the source table.</param>
-        /// <param name="indent">Optional indentation for formatting the SQL output.</param>
-        /// <returns>The SQL expression for the join.</returns>
-        public string GetSqlExpression(string fromAlias, string? indent = null) =>
-            $"{indent}  {JoinType.ToString().Replace('_', ' ')} JOIN " +
-            (Target == Alias ? $"[{Alias}]" : $"{Target} AS [{Alias}]") +
-            (!string.IsNullOrWhiteSpace(Predicate) ? $"\n{indent}    ON {Predicate}" : string.Empty);
+        public List<ISqlColumn> Columns { get; protected set; } = [];
 
         /// <summary>
         /// Gets or sets the type of join (e.g., INNER JOIN, LEFT JOIN).
         /// </summary>
         public JoinTypes JoinType { get; set; }
 
-        /// <summary>
-        /// Gets or sets the ON condition for the join.
-        /// </summary>
-        public string? Predicate { get; set; }
 
-        /// <summary>
-        /// Gets or sets the fully qualified name of the target table.
-        /// </summary>
-        public string Target { get; set; }
+        public TableJoin(JoinTypes joinTypes,
+                         ISqlSource sqlSource,
+                         Func<SqlBuilder, IEnumerable<ISqlColumn>> leftHand,
+                         Func<SqlBuilder, IEnumerable<ISqlColumn>> rightHand,
+                         params ISqlColumn[] columns)
+        {
+            this.JoinType = joinTypes;
+            this.SqlSource = sqlSource;
+            Predicate = new DynamicPredicate(leftHand, rightHand);
+            Columns = [.. columns];
+        }
 
-        /// <summary>
-        /// Returns the SQL expression for the join as a string.
-        /// </summary>
-        /// <returns>The SQL expression for the join.</returns>
-        public override string ToString() => GetSqlExpression("{{From Table}}");
+        public TableJoin(JoinTypes joinTypes,
+                       ISqlSource sqlSource,
+                       Func<SqlBuilder, IEnumerable<ISqlColumn>> columnSelector,
+                       params ISqlColumn[] columns)
+        {
+            this.JoinType = joinTypes;
+            this.SqlSource = sqlSource;
+            Predicate = new DynamicPredicate(columnSelector, columnSelector);
+            Columns = [.. columns];
+        }
+
+        public TableJoin(JoinTypes joinTypes,
+                 ISqlSource sqlSource,
+                 string predicate,
+                 params ISqlColumn[] columns)
+        {
+            this.JoinType = joinTypes;
+            this.SqlSource = sqlSource;
+            Predicate = new PredicateClause(predicate);
+            Columns = [.. columns];
+        }
+         
+        public string GetSqlExpression(BuildContext context)
+        {
+            context.Indent(Alias);
+
+            var returning = string.Format(Predicate.GetSqlExpression(context), context.TableAlias);
+
+            context.Unindent();
+
+            return returning;
+        }
     }
 }

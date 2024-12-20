@@ -1,7 +1,10 @@
 ﻿using HuskyKit.Extensions;
 using HuskyKit.Sql;
 using HuskyKit.Sql.Columns;
+using System.Collections;
 using System.Collections.ObjectModel;
+using System.Linq.Expressions;
+using System.Net.Http.Headers;
 using System.Text;
 
 /// <summary>
@@ -11,11 +14,24 @@ namespace HuskyKit.Sql.Sources
 {
     public partial class SqlBuilder : ISqlSource
     {
-        public ISqlColumn this[string name] => Columns.First(x => x.Column.Name == name).Column;
+        public ISqlColumn this[string name]
+        {
+            get
+            {
+                var a = Columns.FirstOrDefault(x => x.Column.Name.Equals(name)).Column;
+                if (a != null) return a;
+
+                if (From is SqlBuilder b)
+                    return b.Columns.First(x => x.Column.Name.Equals(name)).Column;
+
+                throw new InvalidOperationException();
+            }
+
+        }
 
         public IDictionary<string, object?> LocalParameters { get; set; } = new Dictionary<string, object?>();
 
-        public IReadOnlyDictionary<string, object?> Parameters => 
+        public IReadOnlyDictionary<string, object?> Parameters =>
             new ReadOnlyDictionary<string, object?>(
                 GetNestedBuilders(true)
                 .Distinct()
@@ -23,11 +39,11 @@ namespace HuskyKit.Sql.Sources
                 .ToDictionary(x => x.Key, x => x.Value)
             );
 
-        protected IEnumerable<SqlBuilder> GetNestedBuilders(bool includeQueryColumns = true)
+        protected IEnumerable<SqlBuilder> GetNestedBuilders(bool includeQueryColumns)
         {
             foreach (var table in LocalWithTables)
             {
-                foreach (var subtable in table.GetNestedBuilders())
+                foreach (var subtable in table.GetNestedBuilders(includeQueryColumns))
                     if (subtable.From != null)
                         yield return subtable;
 
@@ -39,7 +55,7 @@ namespace HuskyKit.Sql.Sources
             {
                 if (SqlColumn is SqlQueryColumn query)
                 {
-                    foreach (var subtable in query.SqlBuilder.GetNestedBuilders())
+                    foreach (var subtable in query.SqlBuilder.GetNestedBuilders(includeQueryColumns))
                     {
                         if (subtable.From != null && subtable.WhereConditions.Any())
                             yield return subtable;
@@ -50,11 +66,69 @@ namespace HuskyKit.Sql.Sources
             }
         }
 
+        #region Where
+
+        public SqlBuilder JoinEnvolvingTable(Func<SqlBuilder, ISqlColumn> Column1, Func<SqlBuilder, ISqlColumn> Column2)
+        {
+            LocalWhereConditions.Add((BuildContext x) =>
+            {
+                var tables = x.TableAlias.Skip(1).ToArray();
+                var outerTable = x.RenderedTables.First(x => x.Alias == tables[0]);
+                var expression1 = string.Format(Column1(this).GetWhereExpression(x), x.TableAlias.ToArray());
+                var expression2 = string.Format(Column2(outerTable).GetWhereExpression(x), tables);
+
+                var predicate = string.Format(SQLOperator.Equals.GetOperatorPredicate(), expression2);
+
+                return $"{expression1} {predicate}";
+            });
+            return this;
+        }
+
         public SqlBuilder Where<T>(Func<SqlBuilder, ISqlColumn> sqlColumnSelector, T? Value, SQLOperator @operator = SQLOperator.AutoEquals)
         {
-            var id = $"@Pb{this.ID}i{LocalParameters.Count}";
-            LocalParameters.Add(id, Value);
-            LocalWhereConditions.Add((BuildContext x) => $"{sqlColumnSelector(this).GetWhereExpression(x)} {@operator.GetOperator(Value)} @{id}");
+            string sqloperator;
+
+            if (Value is not string && Value is IEnumerable E)
+            {
+                sqloperator = @operator.GetOperator(true);
+            }
+            else
+            {
+                sqloperator = @operator.GetOperator(false);
+            }
+
+            LocalWhereConditions.Add((BuildContext x) =>
+            {
+                var g = $"{sqlColumnSelector(this).GetWhereExpression(x)} {sqloperator} {Value.GetParameterValue()}";
+                return g;
+            });
+
+            return this;
+        }
+
+        public SqlBuilder WhereParameter<T>(Func<SqlBuilder, ISqlColumn> sqlColumnSelector, T? Value, SQLOperator @operator = SQLOperator.AutoEquals)
+        {
+            IEnumerable<object?> enumerators;
+            List<string> Keys = [];
+
+            if (Value is not string && Value is IEnumerable E)
+                enumerators = E.Cast<object>();
+            else
+                enumerators = [Value];
+
+            foreach (var item in enumerators)
+            {
+                var id = $"Pb{this.ID}i{LocalParameters.Count}";
+                LocalParameters.Add(id, item);
+                Keys.Add("@" + id);
+            }
+
+
+            var predicate = string.Format(@operator.GetOperatorPredicate(Value), string.Join(',', Keys));
+
+            LocalWhereConditions.Add((BuildContext x) =>
+                $"{sqlColumnSelector(this).GetWhereExpression(x)} {predicate}");
+
             return this;
         }
 
@@ -62,9 +136,26 @@ namespace HuskyKit.Sql.Sources
         {
             var id = $"@Pb{this.ID}i{LocalParameters.Count}";
             LocalParameters.Add(id, Value);
-            LocalWhereConditions.Add((BuildContext x) => $"{sqlColumnSelector(this).GetWhereExpression(x)} {SQLOperator.AutoDiffers.GetOperator(Value)} @{id}");
+            LocalWhereConditions.Add((BuildContext x) =>
+            {
+                var expression1 = string.Format(sqlColumnSelector(this).GetWhereExpression(x), x.TableAlias.ToArray());
+                return $"{expression1} {SQLOperator.AutoDiffers.GetOperatorPredicate(Value)} @{id}";
+            });
             return this;
         }
+
+        public SqlBuilder WhereIsNotNull(Func<SqlBuilder, ISqlColumn> sqlColumnSelector)
+        {
+
+            LocalWhereConditions.Add((BuildContext x) =>
+            {
+                var expression1 = string.Format(sqlColumnSelector(this).GetWhereExpression(x), x.TableAlias.ToArray());
+                return $"{expression1} IS NOT NULL";
+            });
+            return this;
+        }
+
+        #endregion
 
         /// <summary>
         /// Initializes a new instance of the SqlBuilder class with a source, alias, and optional columns.
@@ -275,17 +366,18 @@ namespace HuskyKit.Sql.Sources
 
             DetermineWith(sb, context);
 
-            context.SetTable(Alias);
+            var (topSql, orderSqlWriter) = DetermineOffset(context);
 
-            var (topSql, orderSql) = DetermineOffset(context);
+            var fromWriter = DetermineFrom(context);
 
             DetermineSelect(sb, topSql, context);
 
-            DetermineFrom(sb, context);
+            fromWriter(sb);
+
             DetermineWhere(sb, context);
             DetermineGroupBy(sb, context);
 
-            orderSql(sb);
+            orderSqlWriter(sb);
 
             if (context.CurrentOptions.ForJson.HasValue)
                 AppendForJson(sb, context.CurrentOptions.ForJson.Value, context.CurrentOptions.Indentation);
@@ -484,47 +576,58 @@ namespace HuskyKit.Sql.Sources
         /// </summary>
         /// <param name="sb">The StringBuilder to append the clause to.</param>
         /// <param name="context">The build context for constructing the query.</param>
-        private void DetermineFrom(StringBuilder sb, BuildContext context)
+        private Action<StringBuilder> DetermineFrom(BuildContext context)
         {
             if (From == null)
-                return;
+                return (StringBuilder sb) => sb.DebugComment("No from rendered");
 
-            sb.Append(context.IndentToken);
+            Action<StringBuilder> returning;
 
             if (From is SqlBuilder sqlbuilder)
-            {
                 if (context.RenderedTables.Add(sqlbuilder))
-                {
-                    sb.DebugComment($"{nameof(DetermineFrom)}({ID}->{sqlbuilder.ID}).Append -> Sb.Alias: {sqlbuilder.Alias} Alias:{Alias} CurrentTableAlias:{context.CurrentTableAlias}{sqlbuilder.Alias} ");
+                    returning = (StringBuilder sb) =>
+                    {
+                        sb.Append(context.IndentToken);
 
-                    sb.AppendLine($"FROM (");
+                        sb.DebugComment($"{nameof(DetermineFrom)}({ID}->{sqlbuilder.ID}).Append -> Sb.Alias: {sqlbuilder.Alias} Alias:{Alias} CurrentTableAlias:{context.CurrentTableAlias}{sqlbuilder.Alias} ");
 
-                    context.Indent();
+                        sb.AppendLine($"FROM (");
 
-                    sb.AppendLine(sqlbuilder.Build(context));
+                        context.Indent(sqlbuilder.Alias);
 
-                    context.Unindent();
+                        sb.AppendLine(sqlbuilder.Build(context));
 
-                    sb.AppendLine($"{context.IndentToken}) AS [{sqlbuilder.Alias}]");
-                }
+                        context.Unindent();
+
+                        sb.AppendLine($"{context.IndentToken}) AS [{sqlbuilder.Alias}]");
+                    };
                 else
-                {
-                    sb.DebugComment($"{nameof(DetermineFrom)}({ID}->{sqlbuilder.ID})->Sb.Alias: {sqlbuilder.Alias} Alias:{Alias} CurrentTableAlias:{context.CurrentTableAlias}");
+                    returning = (StringBuilder sb) =>
+                    {
+                        sb.Append(context.IndentToken);
 
-                    sb.AppendLine($"FROM [{sqlbuilder.Alias}] AS [{context.CurrentTableAlias}]");
-                }
-            }
+                        sb.DebugComment($"{nameof(DetermineFrom)}({ID}->{sqlbuilder.ID})->Sb.Alias: {sqlbuilder.Alias} Alias:{Alias} CurrentTableAlias:{context.CurrentTableAlias}");
+
+                        sb.AppendLine($"FROM [{sqlbuilder.Alias}] AS [{context.CurrentTableAlias}]");
+                    };
             else
-            {
-                sb.DebugComment($"{nameof(DetermineFrom)}({ID})->Alias:{Alias} CurrentTableAlias:{context.CurrentTableAlias} SqlTable({From})");
+                returning = (StringBuilder sb) =>
+                {
+                    sb.Append(context.IndentToken);
 
-                sb.AppendLine($"FROM {From.Build(context)}");
-            }
+                    sb.DebugComment($"{nameof(DetermineFrom)}({ID})->Alias:{Alias} CurrentTableAlias:{context.CurrentTableAlias} SqlTable({From})");
 
-            foreach (var join in Joins)
+                    sb.AppendLine($"FROM {From.Build(context)}");
+                };
+
+            return (StringBuilder sb) =>
             {
-                sb.AppendLine(join.GetSqlExpression(Alias, context.IndentToken));
-            }
+                returning(sb);
+                foreach (var join in Joins)
+                {
+                    sb.AppendLine(join.GetSqlExpression(context));
+                }
+            };
         }
 
         /// <summary>
@@ -539,7 +642,7 @@ namespace HuskyKit.Sql.Sources
 
             var groupByColumns = Columns
                 .Where(c => !c.Column.Aggregate)
-                .Select(c => c.Column.GetGroupByExpression(context.SetTable(c.TableAlias)));
+                .Select(c => c.Column.GetGroupByExpression(context /*.SetCurrentTable(c.TableAlias)*/ ));
 
             if (!groupByColumns.Any()) return;
 
@@ -662,7 +765,7 @@ namespace HuskyKit.Sql.Sources
                     sb.Append("  ,");
                 }
 
-                sb.AppendLine(Column.GetSqlExpression(context.SetTable(TableAlias)));
+                sb.AppendLine(Column.GetSelectExpression(context /*.SetCurrentTable(TableAlias)*/ ));
                 first = false;
             }
 
@@ -674,7 +777,7 @@ namespace HuskyKit.Sql.Sources
         /// <param name="sb">The StringBuilder to append the clause to.</param>
         private void DetermineWhere(StringBuilder sb, BuildContext context)
         {
-            if (WhereConditions.Any()) return;
+            if (!WhereConditions.Any()) return;
 
 
             bool first = true;
@@ -690,7 +793,7 @@ namespace HuskyKit.Sql.Sources
                 else
                     sb.Append("  AND ");
 
-                sb.AppendLine(string.Format(whereCondition(context), Alias));
+                sb.AppendLine(string.Format(whereCondition(context), context.CurrentTableAlias));
 
                 first = false;
             }
@@ -735,7 +838,7 @@ namespace HuskyKit.Sql.Sources
 
                     sb.AppendLine($"[{outerTableName}] AS (");
 
-                    context.Indent();
+                    context.Indent(Table.Alias);
 
                     sb.AppendLine($"{Table.Build(context)}");
 

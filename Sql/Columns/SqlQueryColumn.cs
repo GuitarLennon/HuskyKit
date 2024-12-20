@@ -74,7 +74,7 @@ namespace HuskyKit.Sql.Columns
 
             var options = context.CurrentOptions.Clone(ForJson, Skip, Length);
 
-            context.Indent(options);
+            context.Indent(SqlBuilder.Alias, options);
 
             sb.Append(SqlBuilder.Build(context)).Replace("\n", "\n   ");
 
@@ -84,7 +84,9 @@ namespace HuskyKit.Sql.Columns
 
             sb.DebugComment($"-->{nameof(SqlQueryColumn)}.{nameof(GetSqlExpression)}");
 
-            sb.Append($") AS [{Name}]");
+            sb.Append(')');
+
+            //sb.Append($") AS [{Name}]");
 
             return sb.ToString();
         }
@@ -98,7 +100,7 @@ namespace HuskyKit.Sql.Columns
         /// <returns>The WHERE SQL expression for the column.</returns>
         public override string GetWhereExpression(BuildContext context)
         {
-            context.Indent(context.CurrentOptions.Clone(ForJson));
+            context.Indent(SqlBuilder.Alias, context.CurrentOptions.Clone(ForJson));
 
             var sql = "(" + SqlBuilder.Build(context) + ")";
 
@@ -114,8 +116,6 @@ namespace HuskyKit.Sql.Columns
         /// <param name="context">The build context for constructing the query.</param>
         /// <returns>The SELECT SQL expression for the column.</returns>
         public override string GetSelectExpression(BuildContext context)
-            =>
-            show_name == raw_name ? GetSqlExpression(context) :
-            $"{GetSqlExpression(context)} AS [{Name}]";
+            => $"{GetSqlExpression(context)} AS [{Name}]";
     }
 }

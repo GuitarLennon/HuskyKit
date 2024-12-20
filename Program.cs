@@ -38,7 +38,7 @@ string test2()
     bool includeMap = false;
 
     var claveIndicadores = claveIndicador.Split(',');
-     
+
     var indicadores = SqlBuilder
         .Select(
             "Clave indicador",
@@ -98,7 +98,7 @@ string test2()
         .Select(claveIndicadores.Select(column).ToArray())
         .SelectIf(includeMap, "GeoJson")
         .From(Geography);
-    
+
 
     if (string.IsNullOrWhiteSpace(tipo))
         scope.Where($"[Tipo] = 'Nacional'");
@@ -120,9 +120,13 @@ void test(Func<string> method)
     Console.WriteLine(method());
 }
 
+void testting(params Func<string>[] methods)
+{
+    foreach (var item in methods)
+        test(item);
+}
 
-
-test(test2);
+testting(test1, test2);
 
 
 

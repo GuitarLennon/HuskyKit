@@ -2,6 +2,7 @@
 using System.Data.SqlTypes;
 using System.Dynamic;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Xml.Linq;
 using HuskyKit;
 using HuskyKit.Sql.Columns;
@@ -32,20 +33,31 @@ namespace HuskyKit.Sql
         OR,
         SOME,
         IS,
-        ISNOT 
+        ISNOT
+    }
+
+    public enum DataType
+    {
+        Null,
+        Time,
+        Date,
+        DateTime,
+        Integer,
+        Fractionary,
+        Binary,
+        String,
+        Unicode,
+        Misc
     }
 
     public static partial class SqlBuilderExtensions
     {
 
-        public static string GetOperator(this SQLOperator @operator, object? @object)
-            => GetOperator(@operator, @object is not string && @object is IEnumerable, @object is null);
-
         public static string GetOperator(this SQLOperator @operator, bool isArray = false, bool isNull = false)
             => @operator switch
             {
-                SQLOperator.AutoEquals => isNull ? "IS": isArray ? "IN" : "=",
-                SQLOperator.AutoDiffers => isNull ? "IS NOT": isArray ? "NOT IN" : "!=",
+                SQLOperator.AutoEquals => isNull ? "IS" : isArray ? "IN" : "=",
+                SQLOperator.AutoDiffers => isNull ? "IS NOT" : isArray ? "NOT IN" : "!=",
                 SQLOperator.Equals => "=",
                 SQLOperator.GreaterThan => ">",
                 SQLOperator.LessThan => "<",
@@ -55,7 +67,27 @@ namespace HuskyKit.Sql
                 SQLOperator.NotLessThan => "!<",
                 SQLOperator.NotGreaterThan => "!<",
                 SQLOperator.ISNOT => "IS NOT",
-                _ => @operator.ToString(),
+                _ => @operator.ToString() + "",
+            };
+
+        public static string GetOperatorPredicate(this SQLOperator @operator, object? @object)
+            => GetOperatorPredicate(@operator, @object is not string && @object is IEnumerable, @object is null);
+
+        public static string GetOperatorPredicate(this SQLOperator @operator, bool isArray = false, bool isNull = false)
+            => @operator switch
+            {
+                SQLOperator.AutoEquals => isNull ? "IS {0}" : isArray ? "IN ({0})" : "= {0}",
+                SQLOperator.AutoDiffers => isNull ? "IS NOT {0}" : isArray ? "NOT IN ({0})" : "!= {0}",
+                SQLOperator.Equals => "= {0}",
+                SQLOperator.GreaterThan => "> {0}",
+                SQLOperator.LessThan => "< {0}",
+                SQLOperator.GreaterThanOrEqualTo => "> {0}",
+                SQLOperator.LessThanOrEqualTo => "< {0}",
+                SQLOperator.NotEqualTo => "<> {0}",
+                SQLOperator.NotLessThan => "!< {0}",
+                SQLOperator.NotGreaterThan => "!< {0}",
+                SQLOperator.ISNOT => "IS NOT {0}",
+                _ => @operator.ToString() + " {0}",
             };
 
         public static string BuildForJson(this SqlBuilder sqlBuilder, ForJsonOptions forJsonOptions)
@@ -69,13 +101,69 @@ namespace HuskyKit.Sql
 
             return new_builder.Build();
         }
-    }
 
-    /// <summary>
-    /// Provides extension methods for building SQL queries using the SqlBuilder.
-    /// </summary>
-    public static partial class SqlBuilderExtensions
-    {
+        public static string PrintParameter(this KeyValuePair<string, object?> Parameter)
+        {
+            string value = Parameter.Value?.ToString() ?? "null";
+
+            if (Parameter.Value is null || Parameter.Value is bool)
+            { }
+            else if (Parameter.Value is int)
+            { }
+            else if (Parameter.Value is long)
+            { }
+            else if (Parameter.Value is float || Parameter.Value is double)
+            { }
+            else if (Parameter.Value is DateTime d)
+            {
+                value = $"DATETIMEFROMPARTS({d.Year}, {d.Month}, {d.Day}, {d.Hour}, {d.Minute}, {d.Second}, {d.Nanosecond})";
+            }
+            else
+            {
+                value = $"'{Parameter.Value}'";
+            }
+
+
+            return value;
+        }
+
+        public static string PrintParameterAsDeclare(this KeyValuePair<string, object?> Parameter)
+        {
+            string type;
+            string value = Parameter.Value?.ToString() ?? "null";
+
+            if (Parameter.Value is null || Parameter.Value is bool)
+                type = "bit";
+            else if (Parameter.Value is int)
+                type = "int";
+            else if (Parameter.Value is long)
+                type = "long";
+            else if (Parameter.Value is float || Parameter.Value is double)
+                type = "float";
+            else if (Parameter.Value is DateTime d)
+            {
+                type = "datetime";
+                value = $"DATETIMEFROMPARTS({d.Year}, {d.Month}, {d.Day}, {d.Hour}, {d.Minute}, {d.Second}, {d.Nanosecond})";
+            }
+            else
+            {
+                type = $"NVARCHAR({Parameter.Value?.ToString()?.Length ?? 255})";
+                value = $"'{Parameter.Value}'";
+            }
+
+
+            return $"DECLARE @{Parameter.Key} {type} = {value};";
+        }
+
+        public static string GetParameterValue(this object? Value) =>
+            Value is null ? "NULL" : Value is string or DateTime
+                ? $"'{Value}'"
+                    : Value is IEnumerable e
+                        ? !e.Cast<object>().Any() ? "(SELECT NULL)"
+                            : $"({string.Join(',', e.Cast<object>().Select(x => x == null ? "null" : x is string or DateTime ? $"'{x}'" : x.ToString()).ToArray())})"
+                        : Value.ToString()!;
+
+
 
 
         /// <summary>
@@ -195,22 +283,71 @@ namespace HuskyKit.Sql
             return sqlBuilder;
         }
 
-        public static SqlBuilder Join(this SqlBuilder builder, JoinTypes type, (string Schema, string Table) table, string predicate)
-                                                                                                   => builder.Join(type, (table.Schema, table.Table, null), predicate);
+        /// <summary>
+        /// Adds a table join to the SQL query.
+        /// </summary>
+        public static SqlBuilder Join(this SqlBuilder sqlBuilder, JoinTypes joinType, ISqlSource joinTable, string predicate, params ISqlColumn[] columns)
+        {
+            var tableJoin = new TableJoin(joinType, joinTable, predicate, [.. columns]);
+            sqlBuilder.Joins.Add(tableJoin);
+            return sqlBuilder;
+        }
+
 
 
         /// <summary>
         /// Adds a table join to the SQL query.
         /// </summary>
-        public static SqlBuilder Join(this SqlBuilder sqlBuilder, JoinTypes joinType, (string Schema, string Table, string? Alias) joinTable, string predicate, params ISqlColumn[] columns)
+        public static SqlBuilder Join(this SqlBuilder sqlBuilder, JoinTypes joinType, ISqlSource joinTable,
+                                      Func<SqlBuilder, IEnumerable<ISqlColumn>> columnSelector,
+                                      params ISqlColumn[] columns)
         {
-            var tableJoin = new TableJoin(joinType, (joinTable.Schema, joinTable.Table), joinTable.Alias, predicate, columns);
+            var tableJoin = new TableJoin(joinType, joinTable, columnSelector, columnSelector, [.. columns]);
             sqlBuilder.Joins.Add(tableJoin);
             return sqlBuilder;
         }
 
-        public static SqlBuilder Join(this SqlBuilder sqlBuilder, JoinTypes joinType, (string Schema, string Table) joinTable, string predicate, params ISqlColumn[] columns)
-                    => sqlBuilder.Join(joinType, (joinTable.Schema, joinTable.Table, null), predicate, columns);
+        public static SqlBuilder Join(this SqlBuilder sqlBuilder, JoinTypes joinType, SqlTable joinTable,
+                              Func<SqlBuilder, IEnumerable<ISqlColumn>> columnSelector,
+                              params ISqlColumn[] columns)
+            => Join(sqlBuilder, joinType, (ISqlSource)joinTable, columnSelector, columns);
+
+
+        public static SqlBuilder Join(this SqlBuilder sqlBuilder, JoinTypes joinType, SqlTable joinTable,
+                              Func<SqlBuilder, ISqlColumn> columnSelector,
+                              params ISqlColumn[] columns)
+            => Join(sqlBuilder, joinType, (ISqlSource)joinTable, (SqlBuilder x) => [columnSelector(x)], columns);
+
+
+        /// <summary>
+        /// Adds a table join to the SQL query.
+        /// </summary>
+        public static SqlBuilder Join(this SqlBuilder sqlBuilder, JoinTypes joinType, ISqlSource joinTable,
+                                      Func<SqlBuilder, IEnumerable<ISqlColumn>> leftHand,
+                                      Func<SqlBuilder, IEnumerable<ISqlColumn>> rightHand, params ISqlColumn[] columns)
+        {
+            var tableJoin = new TableJoin(joinType, joinTable, leftHand, rightHand, [.. columns]);
+            sqlBuilder.Joins.Add(tableJoin);
+            return sqlBuilder;
+        }
+
+
+        /// <summary>
+        /// Adds a table join to the SQL query.
+        /// </summary>
+        public static SqlBuilder Join(this SqlBuilder sqlBuilder, JoinTypes joinType, ISqlSource joinTable,
+                                      Func<SqlBuilder, ISqlColumn> leftHand,
+                                      Func<SqlBuilder, ISqlColumn> rightHand, params ISqlColumn[] columns)
+        {
+            var tableJoin = new TableJoin(joinType, joinTable, (SqlBuilder x) => [leftHand(x)], (SqlBuilder x) => [rightHand(x)], [.. columns]);
+            sqlBuilder.Joins.Add(tableJoin);
+            return sqlBuilder;
+        }
+
+        /*
+        [Obsolete]
+        public static SqlBuilder Join(this SqlBuilder sqlBuilder, JoinTypes joinType, SqlTable joinTable, string predicate, params ISqlColumn[] columns)
+                    => sqlBuilder.Join(joinType, joinTable, predicate, columns);
 
         public static SqlBuilder Join(this SqlBuilder sqlBuilder, JoinTypes joinType, SqlBuilder subQuery, string? predicate, params ISqlColumn[] columns)
         {
@@ -219,6 +356,7 @@ namespace HuskyKit.Sql
             sqlBuilder.Joins.Add(tableJoin);
             return sqlBuilder;
         }
+        */
 
         /// <summary>
         /// Orders a column with an index and direction.
@@ -279,7 +417,7 @@ namespace HuskyKit.Sql
         {
             foreach (var condition in conditions)
             {
-                sqlBuilder.LocalWhereConditions.Add((BuildContext x) => condition);
+                sqlBuilder.LocalWhereConditions.Add((BuildContext x) => string.Format(condition, x.CurrentTableAlias));
             }
             return sqlBuilder;
         }
@@ -293,7 +431,7 @@ namespace HuskyKit.Sql
             return sqlBuilder;
         }
 
-  
+
         /*
         public static SqlBuilder Where<T>(this SqlBuilder sqlBuilder, ISqlColumn sqlColumn, T? Value, SQLOperator @operator = SQLOperator.EqualsOrContains) where T : struct
         {

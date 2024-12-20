@@ -49,7 +49,7 @@ namespace HuskyKit.Sql.Columns
             show_name = AsAlias;
             Aggregate = aggregate;
             Order.Apply(order);
-            Expression = (expression?.ToString() ?? $"null") + $" AS [{AsAlias}]";
+            Expression = (expression?.ToString() ?? $"null");// + $" AS [{AsAlias}]";
         }
 
         /// <summary>
@@ -64,9 +64,9 @@ namespace HuskyKit.Sql.Columns
         /// <param name="context">El contexto de construcción de la consulta SQL.</param>
         /// <returns>Una cadena que representa la expresión SQL para la cláusula SELECT.</returns>
         public override string GetSelectExpression(BuildContext context)
-            => show_name == raw_name
-                ? GetSqlExpression(context)
-                : $"{GetSqlExpression(context)} AS [{Name}]";
+            => raw_name is null || show_name != raw_name ?
+                 $"{GetSqlExpression(context)} AS [{Name}]" :
+                    GetSqlExpression(context);
 
         /// <summary>
         /// Genera la expresión SQL de la columna para la cláusula GROUP BY.
@@ -85,7 +85,7 @@ namespace HuskyKit.Sql.Columns
         /// <param name="context">El contexto de construcción de la consulta SQL.</param>
         /// <returns>Una cadena que representa la expresión SQL para la cláusula WHERE.</returns>
         public override string GetWhereExpression(BuildContext context)
-            => $"CONVERT(varchar, {string.Format(Expression, context.CurrentTableAlias)})";
+            => Expression;
 
         /// <summary>
         /// Genera la expresión SQL de la columna.
