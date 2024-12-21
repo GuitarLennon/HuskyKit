@@ -14,7 +14,7 @@ namespace HuskyKit.Sql.Sources
 {
     public partial class SqlBuilder : ISqlSource
     {
-        public ISqlColumn this[string name]
+        public virtual ISqlColumn this[string name]
         {
             get
             {
@@ -51,7 +51,12 @@ namespace HuskyKit.Sql.Sources
                     yield return table;
             }
 
-            foreach (var SqlColumn in TableColumns)
+            GetNestedSubqueries(includeQueryColumns);
+        }
+
+        private IEnumerable<SqlBuilder> GetNestedSubqueries(bool includeQueryColumns)
+        {
+            foreach (ISqlColumn SqlColumn in TableColumns)
             {
                 if (SqlColumn is SqlQueryColumn query)
                 {
@@ -272,7 +277,7 @@ namespace HuskyKit.Sql.Sources
         /// <summary>
         /// Gets or sets the pre-query options (e.g., additional SQL clauses).
         /// </summary>
-        public string? PreQueryOptions { get; set; }
+        public ICollection<string> PreQueryOptions { get; } = new List<string>();
 
         /// <summary>
         /// Gets or sets the post-query options (e.g., additional SQL clauses).
@@ -359,10 +364,22 @@ namespace HuskyKit.Sql.Sources
 
             var sb = new StringBuilder().DebugComment($"Build({ID}, Alias:{Alias}, Depth:{context.Depth})");
 
-            if (!string.IsNullOrWhiteSpace(PreQueryOptions))
-                sb.Append(context.IndentToken)
-                    .DebugComment("Prequery options")
-                    .AppendLine(PreQueryOptions);
+            if (PreQueryOptions.Count > 0)
+            {
+                if (context.Depth == 1)
+                {
+                    sb.Append(context.IndentToken)
+                        .DebugComment("Prequery options");
+                    
+                    foreach(var item in PreQueryOptions)
+                        sb.AppendLine(item);
+                } else
+                {
+                    sb.Comment("Prequery options not rendered:");
+                    foreach (var item in PreQueryOptions)
+                        sb.Comment(item);
+                }
+            }
 
             DetermineWith(sb, context);
 

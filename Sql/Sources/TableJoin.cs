@@ -3,6 +3,17 @@ using System.Text;
 
 namespace HuskyKit.Sql.Sources
 {
+    internal class SqlBuilderResolver(string Alias) : SqlBuilder(Alias)
+    {
+        public override ISqlColumn this[string name]
+        {
+            get
+            {
+                return new SqlColumn(name);
+                //return new SqlColumn($"[{{1}}].[{name}]", name);
+            }
+        }
+    }
 
     public class PredicateClause(string predicate) : ISqlExpression
     {
@@ -21,8 +32,11 @@ namespace HuskyKit.Sql.Sources
     {
         public string GetSqlExpression(BuildContext context)
         {
+            var current = context.CurrentTableAlias;
+
             var left = RightHand(context.RenderedTables.First(x => x.Alias == context.TableAlias.ElementAt(1)));
-            var right = LeftHand(context.RenderedTables.First(x => x.Alias == context.CurrentTableAlias));
+            var right = LeftHand(context.RenderedTables.FirstOrDefault(x => x.Alias == context.CurrentTableAlias) ?? new SqlBuilderResolver(context.CurrentTableAlias!));
+
             List<string> predicates = [];
 
             if (left.Count() != right.Count())
@@ -30,7 +44,13 @@ namespace HuskyKit.Sql.Sources
 
             for (var i = 0; i < left.Count(); i++)
             {
-                predicates.Add($"{left.ElementAt(i).GetSqlExpression(context)} AND {right.ElementAt(i).GetSqlExpression(context)}");
+                context.Unindent();
+                var left_predicate = left.ElementAt(i).GetSqlExpression(context);
+                
+                context.Indent(current);
+
+                var right_predicate = string.Format(right.ElementAt(i).GetSqlExpression(context), "{1}");
+                predicates.Add($"{left_predicate} = {right_predicate}");
             }
 
             return string.Join(" AND ", [.. predicates]);
@@ -99,12 +119,28 @@ namespace HuskyKit.Sql.Sources
             Predicate = new PredicateClause(predicate);
             Columns = [.. columns];
         }
-         
+
         public string GetSqlExpression(BuildContext context)
         {
+            string returning = $"{JoinType} JOIN ";
+
             context.Indent(Alias);
 
-            var returning = string.Format(Predicate.GetSqlExpression(context), context.TableAlias);
+            if (SqlSource is SqlBuilder b)
+                if (context.RenderedTables.Add(b))
+                {
+                    returning += $"[{Alias}]";
+                }
+                else
+                {
+                    returning += $"({b.Build(context)}) as [{Alias}]";
+                }
+            else
+            {
+                returning += SqlSource.Build(context);
+            }
+
+            returning += " ON " + string.Format(Predicate.GetSqlExpression(context), context.TableAlias);
 
             context.Unindent();
 

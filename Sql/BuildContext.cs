@@ -42,7 +42,7 @@ namespace HuskyKit.Sql
         /// <summary>
         /// Gets or sets the current table alias being used in the query.
         /// </summary>
-        public string? CurrentTableAlias => OptionList.Peek().tableName;
+        public string CurrentTableAlias => OptionList.Peek().tableName;
 
         public IEnumerable<string> TableAlias => OptionList.Select(x => x.tableName);
         // OptionList.Count < 2 ? null :

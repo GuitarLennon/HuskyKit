@@ -36,7 +36,7 @@ namespace HuskyKit.Datatables
 
                 if (sqlColumn.IsMappedToColumn && !builder.Columns.Any(x => x.Column.Name == sqlColumn.Name))
                 {
-                    builder.PreQueryOptions += $"/* Warning: No se encontró la columna: {sqlColumn}*/\n";
+                    builder.PreQueryOptions.Add($"/* Warning: No se encontró la columna: {sqlColumn}*/\n");
                 }
                 else
                 {
@@ -44,6 +44,11 @@ namespace HuskyKit.Datatables
                 }
             }
 
+            return DataBuilder(builder, dTRequest, columns, filters);
+        }
+
+        private static DataTablesRecord DataBuilder(SqlBuilder builder, DTRequest dTRequest, List<SqlColumn> columns, List<string> filters)
+        {
             if (!string.IsNullOrWhiteSpace(dTRequest.Search.Value))
             {
                 Func<SqlColumn, string> d = dTRequest.Search.Regex == true ?
@@ -69,6 +74,5 @@ namespace HuskyKit.Datatables
 
             return new DataTablesRecord(subquery, filtered, builder, data);
         }
-
     }
 }
