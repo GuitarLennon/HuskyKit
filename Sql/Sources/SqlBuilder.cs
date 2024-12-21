@@ -3,6 +3,7 @@ using HuskyKit.Sql;
 using HuskyKit.Sql.Columns;
 using System.Collections;
 using System.Collections.ObjectModel;
+using System.Data.Common;
 using System.Linq.Expressions;
 using System.Net.Http.Headers;
 using System.Text;
@@ -277,7 +278,7 @@ namespace HuskyKit.Sql.Sources
         /// <summary>
         /// Gets or sets the pre-query options (e.g., additional SQL clauses).
         /// </summary>
-        public ICollection<string> PreQueryOptions { get; } = new List<string>();
+        public ICollection<string> PreQueryOptions { get; } = [];
 
         /// <summary>
         /// Gets or sets the post-query options (e.g., additional SQL clauses).
@@ -344,7 +345,7 @@ namespace HuskyKit.Sql.Sources
         /// <returns>The SQL query string.</returns>
         public string Build(BuildOptions? options = default)
         {
-            var context = new BuildContext(options ?? new BuildOptions());
+            var context = new BuildContext(this, options ?? new BuildOptions());
 
             var result = Build(context);
 
@@ -358,30 +359,20 @@ namespace HuskyKit.Sql.Sources
         /// <returns>The SQL query string.</returns>
         public string Build(BuildContext context)
         {
-
             if (!Columns.Any())
                 throw new InvalidOperationException($"No columns specified in [{From}] [{Alias}]");
 
             var sb = new StringBuilder().DebugComment($"Build({ID}, Alias:{Alias}, Depth:{context.Depth})");
 
-            if (PreQueryOptions.Count > 0)
+            if (context.Depth == 1)
             {
-                if (context.Depth == 1)
-                {
-                    sb.Append(context.IndentToken)
-                        .DebugComment("Prequery options");
-                    
-                    foreach(var item in PreQueryOptions)
-                        sb.AppendLine(item);
-                } else
-                {
-                    sb.Comment("Prequery options not rendered:");
-                    foreach (var item in PreQueryOptions)
-                        sb.Comment(item);
-                }
+                var nestedTables = GetNestedBuilders(false).ToHashSet();
+
+                DetermineQueryOptions(context, sb, nestedTables);
+
+                DetermineWith(sb, context, nestedTables);
             }
 
-            DetermineWith(sb, context);
 
             var (topSql, orderSqlWriter) = DetermineOffset(context);
 
@@ -405,6 +396,20 @@ namespace HuskyKit.Sql.Sources
                     .Append(QueryOptions);
 
             return sb.ToString();
+        }
+
+        private static void DetermineQueryOptions(BuildContext context, StringBuilder sb, HashSet<SqlBuilder> nestedTables)
+        {
+            var nestedTablesOptions = nestedTables.SelectMany(x => x.PreQueryOptions).Distinct().ToList();
+
+            if (nestedTablesOptions.Count > 0)
+            {
+                sb.Append(context.IndentToken)
+                    .DebugComment("Prequery options");
+
+                foreach (var item in nestedTablesOptions)
+                    sb.AppendLine(item);
+            }
         }
 
         /// <summary>
@@ -530,35 +535,6 @@ namespace HuskyKit.Sql.Sources
 
         public IDictionary<string, SqlBuilder> WithTables => GetNestedBuilders(false).ToDictionary(x => x.Alias, x => x);
 
-        ///// <summary>
-        ///// Recursively retrieves all SqlBuilder instances used in WITH clauses, including the current instance.
-        ///// </summary>
-        ///// <returns>An enumerable of SqlBuilder instances.</returns>
-        //protected IEnumerable<SqlBuilder> GetWithTableBuilders()
-        //{
-        //    foreach (var table in LocalWithTables)
-        //    {
-        //        foreach (var subtable in table.GetWithTableBuilders())
-        //            if (subtable.From != null)
-        //                yield return subtable;
-
-        //        if (table.From != null)
-        //            yield return table;
-        //    }
-
-        //    foreach (var SqlColumn in TableColumns)
-        //    {
-        //        if (SqlColumn is SqlQueryColumn query)
-        //        {
-        //            foreach (var subtable in query.SqlBuilder.GetWithTableBuilders())
-        //            {
-        //                if (subtable.From != null && subtable.WhereConditions.Any())
-        //                    yield return subtable;
-        //            }
-        //            // yield return query.SqlBuilder; <-- Do not render the query, just the subquerys
-        //        }
-        //    }
-        //}
 
         /// <summary>
         /// Appends a FOR JSON clause to the query with the specified options.
@@ -610,11 +586,11 @@ namespace HuskyKit.Sql.Sources
 
                         sb.AppendLine($"FROM (");
 
-                        context.Indent(sqlbuilder.Alias);
+                        using (context.Indent(sqlbuilder))
+                        {
+                            sb.AppendLine(sqlbuilder.Build(context));
 
-                        sb.AppendLine(sqlbuilder.Build(context));
-
-                        context.Unindent();
+                        }
 
                         sb.AppendLine($"{context.IndentToken}) AS [{sqlbuilder.Alias}]");
                     };
@@ -642,7 +618,10 @@ namespace HuskyKit.Sql.Sources
                 returning(sb);
                 foreach (var join in Joins)
                 {
-                    sb.AppendLine(join.GetSqlExpression(context));
+                    using (context.Indent(join.SqlSource))
+                    {
+                        sb.AppendLine(join.GetSqlExpression(context));
+                    }
                 }
             };
         }
@@ -700,50 +679,7 @@ namespace HuskyKit.Sql.Sources
             var clauses = OrderByClauses.ToArray();
 
             // Determinar ORDER BY y OFFSET
-            if (clauses.Length > 0)
-            {
-                OrderDelegate = sb =>
-                {
-                    sb.Append(context.IndentToken);
-                    sb.DebugComment($"{nameof(OrderDelegate)}()");
-
-                    // Validar condiciones en subtablas
-                    if (context.Depth > 1 &&
-                        (!skip.HasValue || skip.Value < 0) &&
-                        (!length.HasValue || length.Value < 0) &&
-                        !options.ForJson.HasValue)
-                    {
-                        // Encapsular advertencia y cláusulas en /* */
-                        sb.Comment($"No se puede utilizar ORDER BY debido a la falta de condiciones válidas.");
-                        sb.Comment($"-- Cláusulas encontradas:");
-                        foreach (var clause in clauses)
-                        {
-                            sb.Comment($"{context.IndentToken}   {clause.Expression} {clause.Direction}");
-                        }
-                    }
-                    else
-                    {
-                        // Generar cláusulas ORDER BY
-                        sb.Append($"ORDER BY ");
-                        sb.AppendLine(string.Join($",{Environment.NewLine}{context.IndentToken}       ",
-                            clauses.Select(clause => $"{clause.Expression} {clause.Direction}")));
-                    }
-
-                    // Generar OFFSET y FETCH si es aplicable
-                    if (skip.HasValue && skip.Value >= 0)
-                    {
-                        sb.Append($" OFFSET {skip.Value} ROWS");
-
-                        if (length.HasValue && length.Value > 0)
-                        {
-                            sb.Append($" FETCH NEXT {length.Value} ROWS ONLY");
-                        }
-                    }
-
-                    return sb;
-                };
-            }
-
+            OrderDelegate = DeterminePagination(context, OrderDelegate, options, skip, length, clauses);
 
             if (!(skip.HasValue && skip.Value >= 0) && length.HasValue && length.Value > 0)
             {
@@ -751,6 +687,65 @@ namespace HuskyKit.Sql.Sources
             }
 
             return (TopSql, OrderDelegate);
+        }
+
+        private static Func<StringBuilder, StringBuilder> DeterminePagination(BuildContext context, Func<StringBuilder, StringBuilder> OrderDelegate, BuildOptions options, int? skip, int? length, OrderByClause[] clauses)
+        {
+            if (clauses.Length > 0)
+            {
+                OrderDelegate = sb =>
+                {
+                    sb.Append(context.IndentToken);
+                    sb.DebugComment($"{nameof(OrderDelegate)}()");
+
+                    DetermineOrder(context, options, skip, length, clauses, sb);
+
+                    DetermineOffset(skip, length, sb);
+
+                    return sb;
+                };
+            }
+
+            return OrderDelegate;
+        }
+
+        private static void DetermineOrder(BuildContext context, BuildOptions options, int? skip, int? length, OrderByClause[] clauses, StringBuilder sb)
+        {
+            // Validar condiciones en subtablas
+            if (context.Depth > 1 &&
+                (!skip.HasValue || skip.Value < 0) &&
+                (!length.HasValue || length.Value < 0) &&
+                !options.ForJson.HasValue)
+            {
+                // Encapsular advertencia y cláusulas en /* */
+                sb.Comment($"No se puede utilizar ORDER BY debido a la falta de condiciones válidas.");
+                sb.Comment($"-- Cláusulas encontradas:");
+                foreach (var clause in clauses)
+                {
+                    sb.Comment($"{context.IndentToken}   {clause.Expression} {clause.Direction}");
+                }
+            }
+            else
+            {
+                // Generar cláusulas ORDER BY
+                sb.Append($"ORDER BY ");
+                sb.AppendLine(string.Join($",{Environment.NewLine}{context.IndentToken}       ",
+                    clauses.Select(clause => $"{clause.Expression} {clause.Direction}")));
+            }
+        }
+
+        private static void DetermineOffset(int? skip, int? length, StringBuilder sb)
+        {
+            // Generar OFFSET y FETCH si es aplicable
+            if (skip.HasValue && skip.Value >= 0)
+            {
+                sb.Append($" OFFSET {skip.Value} ROWS");
+
+                if (length.HasValue && length.Value > 0)
+                {
+                    sb.Append($" FETCH NEXT {length.Value} ROWS ONLY");
+                }
+            }
         }
 
 
@@ -770,22 +765,36 @@ namespace HuskyKit.Sql.Sources
 
             sb.Append($"SELECT ");
 
-            if (!string.IsNullOrEmpty(topSql))
-                sb.AppendLine(topSql);
-
             bool first = true;
-            foreach (var (TableAlias, Column) in Columns)
-            {
-                if (!first)
-                {
-                    sb.Append(context.IndentToken);
-                    sb.Append("  ,");
-                }
 
-                sb.AppendLine(Column.GetSelectExpression(context /*.SetCurrentTable(TableAlias)*/ ));
+            if (!string.IsNullOrEmpty(topSql))
+            {
+                sb.AppendLine(topSql);
                 first = false;
             }
 
+
+            foreach (var column in TableColumns)
+            {
+                sb.Append(!first, context.IndentToken)
+                    .Append(!first, "  ,")
+                    .AppendLine(column.GetSelectExpression(context));
+
+                first = false;
+            }
+
+            foreach (var join in Joins)
+                using (context.Indent(join.SqlSource))
+                {
+                    foreach (var column in join.Columns)
+                    {
+                        sb.Append(!first, context.IndentToken)
+                            .Append(!first, "  ,")
+                            .AppendLine(column.GetSelectExpression(context));
+
+                        first = false;
+                    }
+                }
         }
 
         /// <summary>
@@ -821,13 +830,8 @@ namespace HuskyKit.Sql.Sources
         /// </summary>
         /// <param name="sb">The StringBuilder to append the clause to.</param>
         /// <param name="context">The build context for constructing the query.</param>
-        private void DetermineWith(StringBuilder sb, BuildContext context)
+        private void DetermineWith(StringBuilder sb, BuildContext context, HashSet<SqlBuilder> withTables)
         {
-            if (context.Depth > 1)
-                return;
-
-            var withTables = GetNestedBuilders(false).ToHashSet();
-
             withTables.Remove(this);
 
             if (withTables.Count == 0) return;
@@ -839,6 +843,7 @@ namespace HuskyKit.Sql.Sources
             int i = 0;
             foreach (var Table in withTables)
             {
+
                 //This table has not been rendered
                 if (context.RenderedTables.Add(Table))
                 {
@@ -855,13 +860,14 @@ namespace HuskyKit.Sql.Sources
 
                     sb.AppendLine($"[{outerTableName}] AS (");
 
-                    context.Indent(Table.Alias);
+                    using (context.Indent(Table))
+                    {
 
-                    sb.AppendLine($"{Table.Build(context)}");
+                        sb.AppendLine($"{Table.Build(context)}");
 
-                    Table.Alias = outerTableName;
+                        Table.Alias = outerTableName;
 
-                    context.Unindent();
+                    }
 
                     sb.AppendLine(")");
                 }
@@ -893,6 +899,14 @@ namespace HuskyKit.Sql.Sources
             result.LocalWithTables.AddRange(subqueries);
 
             return result;
+        }
+
+        public static SqlBuilder SelectAll(bool selectAll = true)
+        {
+            return new()
+            {
+                TableColumns = { new SqlWildCardColumn(selectAll) }
+            };
         }
     }
 }

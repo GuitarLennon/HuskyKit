@@ -112,6 +112,41 @@ string test2()
     return scope.Build();
 }
 
+string test3()
+{
+    return SqlBuilder.Select(
+                "PK"
+                , "ID"
+                , "Cantidad"
+                , "Dosis unitaria"
+                , "Unidades dosis"
+                , "FormaFarmacéutica"
+                , "COMPRA2025"
+            )
+            .From("catMedicamentoFármaco")
+            .Build();
+}
+
+string test4()
+{
+    return SqlBuilder.Select(
+                "PK"
+                , "ID"
+                , "Cantidad"
+                , "Dosis unitaria"
+                , "Unidades dosis"
+                , "FormaFarmacéutica"
+                , "COMPRA2025"
+            )
+            .From("catMedicamentoFármaco")
+            .Join(JoinTypes.INNER, "CatMedicamento"
+                , x => x["PK"]
+                , "PK"
+                , "desc_art"
+                , "COMPRA2025")
+            .Build();
+}
+
 void test(Func<string> method)
 {
     Console.WriteLine("-------------");
@@ -126,7 +161,10 @@ void testting(params Func<string>[] methods)
         test(item);
 }
 
-testting(test1, test2);
+
+
+
+testting(test3, test4);
 
 
 

@@ -10,7 +10,7 @@ namespace HuskyKit.Extensions
     public static class Extensions
     {
 #if DEBUG
-        public static bool Debug { get; set; } = false;
+        public static bool Debug { get; set; } = true;
 #else
         public static bool Debug { get; set; } = false;
 #endif
@@ -20,7 +20,21 @@ namespace HuskyKit.Extensions
                 return Comment(sb, comment);
             return sb;
         }
-         
+
+        public static StringBuilder Append(this StringBuilder sb, bool condition, string @string)
+        {
+            if (condition)
+                return sb.Append(@string);
+            return sb;
+        }
+
+        public static StringBuilder AppendLine(this StringBuilder sb, bool condition, string @string)
+        {
+            if (condition)
+                return sb.AppendLine(@string);
+            return sb;
+        }
+
         public static StringBuilder Comment(this StringBuilder sb, string comment)
         {
           

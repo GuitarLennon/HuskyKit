@@ -64,7 +64,7 @@ namespace HuskyKit.Sql.Columns
         /// <param name="TableAlias">The alias of the table containing the column.</param>
         /// <param name="context">The build context for constructing the query.</param>
         /// <returns>The SQL expression for the column.</returns>
-        public override string GetSqlExpression(BuildContext context)
+        public override string GetSqlExpression(BuildContext context, int targetIndex = 0)
         {
             var sb = new StringBuilder();
 
@@ -72,21 +72,16 @@ namespace HuskyKit.Sql.Columns
 
             sb.DebugComment($"{nameof(SqlQueryColumn)}.{nameof(GetSqlExpression)} (CurrentTableAlias:{context.CurrentTableAlias}, Name:{Name})");
 
-            var options = context.CurrentOptions.Clone(ForJson, Skip, Length);
-
-            context.Indent(SqlBuilder.Alias, options);
-
-            sb.Append(SqlBuilder.Build(context)).Replace("\n", "\n   ");
-
-            context.Unindent();
+            using (context.Indent(SqlBuilder, context.CurrentOptions.Clone(ForJson, Skip, Length)))
+            {
+                sb.Append(SqlBuilder.Build(context)).Replace("\n", "\n   ");
+            };
 
             sb.Append(context.IndentToken);
 
             sb.DebugComment($"-->{nameof(SqlQueryColumn)}.{nameof(GetSqlExpression)}");
 
             sb.Append(')');
-
-            //sb.Append($") AS [{Name}]");
 
             return sb.ToString();
         }
@@ -100,13 +95,12 @@ namespace HuskyKit.Sql.Columns
         /// <returns>The WHERE SQL expression for the column.</returns>
         public override string GetWhereExpression(BuildContext context)
         {
-            context.Indent(SqlBuilder.Alias, context.CurrentOptions.Clone(ForJson));
+            using (context.Indent(SqlBuilder, context.CurrentOptions.Clone(ForJson)))
+            {
+                var sql = "(" + SqlBuilder.Build(context) + ")";
 
-            var sql = "(" + SqlBuilder.Build(context) + ")";
-
-            context.Unindent();
-
-            return sql;
+                return sql;
+            }
         }
 
         /// <summary>

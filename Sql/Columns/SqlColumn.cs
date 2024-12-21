@@ -65,8 +65,8 @@ namespace HuskyKit.Sql.Columns
         /// <returns>Una cadena que representa la expresión SQL para la cláusula SELECT.</returns>
         public override string GetSelectExpression(BuildContext context)
             => raw_name is null || show_name != raw_name ?
-                 $"{GetSqlExpression(context)} AS [{Name}]" :
-                    GetSqlExpression(context);
+                 $"{GetSqlExpression(context, 0)} AS [{Name}]" :
+                    GetSqlExpression(context, 0);
 
         /// <summary>
         /// Genera la expresión SQL de la columna para la cláusula GROUP BY.
@@ -93,8 +93,8 @@ namespace HuskyKit.Sql.Columns
         /// <param name="TableAlias">El alias de la tabla al que pertenece la columna.</param>
         /// <param name="context">El contexto de construcción de la consulta SQL.</param>
         /// <returns>Una cadena que representa la expresión SQL de la columna.</returns>
-        public override string GetSqlExpression(BuildContext context)
-            => string.Format(Expression, context.CurrentTableAlias);
+        public override string GetSqlExpression(BuildContext context, int targetIndex = 0)
+            => string.Format(Expression, context.TableAlias.ElementAt(targetIndex));
 
         /// <summary>
         /// Devuelve una representación en cadena de la columna.

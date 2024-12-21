@@ -12,20 +12,14 @@ namespace HuskyKit.Sql.Columns
         /// </summary>
         /// <param name="column">The name of the column as a string.</param>
         /// <returns>A new SqlColumn instance.</returns>
-        public static implicit operator ISqlColumn(string column)
-        {
-            return new SqlColumn(column);
-        }
+        public static implicit operator ISqlColumn(string column) => new SqlColumn(column);
 
         /// <summary>
         /// Implicitly converts a tuple of (string value, string alias) to a SqlColumnAbstract instance.
         /// </summary>
         /// <param name="column">A tuple containing the column name and alias.</param>
         /// <returns>A new SqlColumn instance with the specified alias.</returns>
-        public static implicit operator ISqlColumn((string value, string AsAlias) column)
-        {
-            return new SqlColumn(column.value, column.AsAlias);
-        }
+        public static implicit operator ISqlColumn((string value, string AsAlias) column) => new SqlColumn(column.value, column.AsAlias);
 
         /// <summary>
         /// Implicitly converts a tuple of (object value, string alias) to a SqlColumnAbstract instance.
@@ -33,19 +27,14 @@ namespace HuskyKit.Sql.Columns
         /// <param name="column">A tuple containing the column value and alias.</param>
         /// <returns>A new SqlColumn instance with the specified alias.</returns>
         public static implicit operator ISqlColumn((object value, string AsAlias) column)
-        {
-            return new SqlColumn(column.value, column.AsAlias);
-        }
+        => new SqlColumn(column.value, column.AsAlias);
 
         /// <summary>
         /// Implicitly converts a tuple of (object value, string alias, bool groupBy) to a SqlColumnAbstract instance.
         /// </summary>
         /// <param name="column">A tuple containing the column value, alias, and groupBy flag.</param>
         /// <returns>A SqlColumn instance configured with grouping.</returns>
-        public static implicit operator ISqlColumn((object value, string AsAlias, bool groupBy) column)
-        {
-            return column.value.As(column.AsAlias, column.groupBy);
-        }
+        public static implicit operator ISqlColumn((object value, string AsAlias, bool groupBy) column) => column.value.As(column.AsAlias, column.groupBy);
 
         /// <summary>
         /// Raw name of the column as defined in the database.
@@ -82,42 +71,22 @@ namespace HuskyKit.Sql.Columns
         /// <param name="TableAlias">The alias of the table containing the column.</param>
         /// <param name="context">The build context for constructing the query.</param>
         /// <returns>The SQL expression for the column.</returns>
-        public abstract string GetSqlExpression(BuildContext context);
+        public abstract string GetSqlExpression(BuildContext context, int targetIndex);
 
         /// <summary>
         /// Generates the SQL GROUP BY expression for the column.
         /// </summary>
         /// <param name="context">The build context for constructing the query.</param>
         /// <returns>The GROUP BY SQL expression for the column.</returns>
-        public virtual string GetGroupByExpression(BuildContext context)
-        {
-            return string.Empty;
-        }
+        public virtual string GetGroupByExpression(BuildContext context) => string.Empty;
 
         /// <summary>
         /// Generates the SQL ORDER BY expression for the column.
         /// </summary>
         /// <param name="context">The build context for constructing the query.</param>
         /// <returns>The ORDER BY SQL expression for the column.</returns>
-        public virtual string GetOrderByExpression(string TableAlias)
-        {
-            return $"[{TableAlias}].[{Name}]";
-            //return $"[{context.CurrentTableAlias}].[{Name}]";
-        }
-
-        /*
-        /// <summary>
-        /// Generates the SQL ORDER BY expression for the column.
-        /// </summary>
-        /// <param name="context">The build context for constructing the query.</param>
-        /// <returns>The ORDER BY SQL expression for the column.</returns>
-        [Obsolete("x")]
-        public virtual string GetOrderByExpression(BuildContext context)
-        {
-            return context.IndentToken + GetOrderByExpression(context);
-        }
-        */
-
+        public virtual string GetOrderByExpression(string TableAlias) => $"[{TableAlias}].[{Name}]";
+        
         /// <summary>
         /// Generates the SQL SELECT expression for the column.
         /// </summary>
@@ -131,10 +100,7 @@ namespace HuskyKit.Sql.Columns
         /// <param name="predicate">The predicate to apply in the WHERE clause.</param>
         /// <param name="context">The build context for constructing the query.</param>
         /// <returns>The WHERE SQL expression for the column.</returns>
-        public virtual string GetWhereExpression(BuildContext context)
-        {
-            return string.Empty;
-        }
+        public virtual string GetWhereExpression(BuildContext context) => string.Empty;
 
     }
 }

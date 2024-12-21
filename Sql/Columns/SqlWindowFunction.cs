@@ -48,12 +48,13 @@ namespace HuskyKit.Sql.Columns
         }
 
         /// <inheritdoc />
-        public override string GetSqlExpression(BuildContext context)
+        public override string GetSqlExpression(BuildContext context, int targetIndex = 0)
         {
             var partitionClause = _partitionBy.Count != 0
                 ? $"PARTITION BY {string.Join(", ", _partitionBy.Select(x => $"[{x}]"))} "
                 : "";
 
+            //TODO: Fix this
             var orderClause = _orderBy.Count != 0
                 ? $"ORDER BY {string.Join(", ", _orderBy.Select(x => $"[{x.Expression}] {x.Direction}"))} "
                 : "";

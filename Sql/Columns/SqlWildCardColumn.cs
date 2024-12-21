@@ -15,9 +15,9 @@
             return string.Format(Expression, context.CurrentTableAlias);
         }
 
-        public override string GetSqlExpression(BuildContext context)
+        public override string GetSqlExpression(BuildContext context, int targetIndex = 0)
         {
-            return string.Format(Expression, context.CurrentTableAlias);
+            return string.Format(Expression, context.TableAlias.ElementAt(targetIndex));
         }
     }
 }
