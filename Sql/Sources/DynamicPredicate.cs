@@ -10,6 +10,7 @@ namespace HuskyKit.Sql.Sources
         public string GetSqlExpression(BuildContext context, int targetIndex)
         {
             var rightSqlBuilder = context.CurrentSource is SqlBuilder a ? a : new SqlBuilderResolver(context.CurrentTableAlias);
+
             var leftSqlBuilder = context.Sources.ElementAtOrDefault(1) is SqlBuilder b ? b : new SqlBuilderResolver(context.CurrentTableAlias);
 
             var leftColumns = LeftHand(leftSqlBuilder);

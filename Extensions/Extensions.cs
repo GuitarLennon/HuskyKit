@@ -10,7 +10,7 @@ namespace HuskyKit.Extensions
     public static class Extensions
     {
 #if DEBUG
-        public static bool Debug { get; set; } = true;
+        public static bool Debug { get; set; } = false;
 #else
         public static bool Debug { get; set; } = false;
 #endif

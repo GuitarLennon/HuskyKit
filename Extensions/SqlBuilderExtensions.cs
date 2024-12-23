@@ -93,7 +93,6 @@ namespace HuskyKit.Sql
         public static string BuildForJson(this SqlBuilder sqlBuilder, ForJsonOptions forJsonOptions)
         {
             var new_builder = SqlBuilder
-                .With(sqlBuilder)
                 .Select(
                     sqlBuilder.AsColumn("TEXT", forJson: forJsonOptions)
                 );
@@ -430,25 +429,7 @@ namespace HuskyKit.Sql
             }
             return sqlBuilder;
         }
-
-
-        /*
-        public static SqlBuilder Where<T>(this SqlBuilder sqlBuilder, ISqlColumn sqlColumn, T? Value, SQLOperator @operator = SQLOperator.EqualsOrContains) where T : struct
-        {
-            var id = $"@P{sqlBuilder.Parameters.Count()}";
-            sqlBuilder.LocalParameters.Add(id, Value);
-            sqlBuilder.LocalWhereConditions.Add((BuildContext x) => $"{sqlColumn.GetWhereExpression(x)} {GetOperator(@operator)} @{id}");
-            return sqlBuilder;
-        }
-
-        public static SqlBuilder Where<T>(this SqlBuilder sqlBuilder, ISqlColumn sqlColumn, IEnumerable<T> Value, SQLOperator @operator = SQLOperator.EqualsOrContains) where T : struct
-        {
-            var id = $"@P{sqlBuilder.Parameters.Count()}";
-            sqlBuilder.LocalParameters.Add(id, Value);
-            sqlBuilder.LocalWhereConditions.Add((BuildContext x) => $"{sqlColumn.GetWhereExpression(x)} {GetOperator(@operator, true)} @{id}");
-            return sqlBuilder;
-        }
-        */
+         
         public static SqlBuilder Where(this SqlBuilder sqlBuilder, bool applyCondition, params string[] conditions)
         {
             if (applyCondition)

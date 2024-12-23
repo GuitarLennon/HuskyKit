@@ -53,27 +53,7 @@ string test2()
             "Desempeño")
         .From(Indicadores)
         .Top(topClaves)
-        .Where($"[{TablaIndicadores}].[Clave indicador] IN ({claveIndicadores})");
-
-    if (!string.IsNullOrWhiteSpace(claves))
-        indicadores.Where($"[{TablaIndicadores}].[Clave]           IN ({claves})");
-
-    if (topFilas.HasValue)
-        indicadores.Where($"[{TablaIndicadores}].[Fila]            <= {topFilas.Value}");
-
-    if (!string.IsNullOrWhiteSpace(periodicidad))
-        indicadores.Where($"[{TablaIndicadores}].[Periodicidad]    IN ({periodicidad})");
-
-    if (fechaInicio.HasValue)
-        indicadores.Where($"[{TablaIndicadores}].[Fecha]           >= {fechaInicio}");
-
-    if (fechaTermino.HasValue)
-        indicadores.Where($"[{TablaIndicadores}].[Fecha]           <= {fechaTermino}");
-
-    if (string.IsNullOrWhiteSpace(tipo))
-        indicadores.Where($"[{TablaIndicadores}].[Tipo]            = 'Nacional'");
-    else
-        indicadores.Where($"[{TablaIndicadores}].[Tipo]            IN ({tipo})");
+        .Where(x => x["Clave indicador"], claveIndicadores);
 
     SqlQueryColumn column(string name) => SqlBuilder
       .Select(
@@ -147,6 +127,117 @@ string test4()
             .Build();
 }
 
+string test5()
+{
+    return SqlBuilder.Select(
+                "PK"
+                , "ID"
+                , "Cantidad"
+                , "Dosis unitaria"
+                , "Unidades dosis"
+                , "FormaFarmacéutica"
+                , "COMPRA2025"
+            )
+            .From("catMedicamentoFármaco")
+            .Join(JoinTypes.INNER, "CatMedicamento"
+                , x => x["PK"]
+                , "PK"
+                , "desc_art"
+                , "COMPRA2025")
+            .BuildForJson(ForJsonOptions.PATH);
+}
+
+string test6()
+{
+    DTRequest dTRequest = new();
+
+    var claveIndicadores = "CVE_PRODSEM_MF";
+
+    var indicadores = SqlBuilder
+        .Select(
+            "Clave indicador",
+            "Clave",
+            "Periodicidad",
+            "Fecha",
+            "Tipo",
+            "[Indicador crudo]".As("Indicador"),
+            "[Numerador crudo]".As("Numerador"),
+            "[Denominador crudo]".As("Denominador"),
+            "Desempeño")
+        .From(("dbo", "Indicadores"))
+        .Where(x => x["Clave indicador"], new[] { "CVE_PRODSEM_MF" });
+
+    var column = (string Name) =>
+    {
+        var builder = SqlBuilder
+            .Select(
+                "Fecha".As("Fecha", order: OrderDirection.DESC),
+                "Periodicidad",
+                "Indicador",
+                "Numerador",
+                "Denominador",
+                "Desempeño"
+            )
+            .From(indicadores)
+            .Top(2)
+            .JoinEnvolvingTable(x => x["Clave"], x => x["Clave"])
+            .JoinEnvolvingTable(x => x["Tipo"], x => x["Tipo"])
+            .WhereIsNotNull(x => x["Indicador"])
+            .Where(x => x["Clave indicador"], Name);
+
+        return new
+        {
+            Name,
+            SortName = $"Sort.{Name}",
+            JsonName = $"Indicadores.{Name}",
+            json = builder.AsColumn($"Indicadores.{Name}", ForJsonOptions.PATH),
+            order = builder.AsValueColumn("Indicador", $"Sort.{Name}")
+        };
+    };
+
+    var cols = new[] { "CVE_PRODSEM_MF" }.Select(column).ToArray();
+
+    var scope = SqlBuilder.With(indicadores)
+        .Select("Clave", "Tipo", "Nombre")
+        .Select([.. cols.Select(x => x.json)])
+        .From("dbo", "Geography")
+        .Join(JoinTypes.LEFT, ("dbo", "GeographyHierarchy"),
+            x => [x["Tipo"], x["Clave"]],
+            "Padre_Tipo".As("Padre_Tipo"), "Padre_Clave".As("Padre_Clave")
+        );
+
+    if (dTRequest is not null && dTRequest.Columns.Length > 0)
+    {
+        var dtr = scope.ApplyDTRequest(dTRequest, true); //Not default order
+
+
+        List<OrderByClause> orderByClauses = [];
+
+        foreach (var order in dTRequest.Order)
+        {
+            if (!string.IsNullOrWhiteSpace(order.ColumnName))
+            {
+                var col = cols.FirstOrDefault(x => x.JsonName == order.ColumnName);
+
+                if (col != null)
+                {
+                    dtr.UnfilteredData.Select(col.order);
+                    dtr.FilteredData.Select(col.SortName);
+                    orderByClauses.Add(new OrderByClause($"CASE WHEN [{col.SortName}] IS NULL THEN 1 ELSE 0 END"));
+                    orderByClauses.Add(new OrderByClause($"[{col.SortName}]", order.Direction));
+                }
+            }
+        }
+
+        if (orderByClauses.Count > 0)
+            dtr.Data.SqlBuilder.OrderBy(orderByClauses.ToArray());
+
+        scope = dtr.DTResponse;
+    }
+
+    return scope.ToString();
+}
+
 void test(Func<string> method)
 {
     Console.WriteLine("-------------");
@@ -164,7 +255,7 @@ void testting(params Func<string>[] methods)
 
 
 
-testting(test3, test4);
+testting(test6, test5, test1, test2, test3, test4);
 
 
 

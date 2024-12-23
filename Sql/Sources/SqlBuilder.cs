@@ -63,30 +63,70 @@ namespace HuskyKit.Sql.Sources
                 {
                     foreach (var subtable in query.SqlBuilder.GetNestedBuilders(includeQueryColumns))
                     {
-                        if (subtable.From != null && subtable.WhereConditions.Any())
+                        if (subtable.From != null /* && subtable.WhereConditions.Any() */)
                             yield return subtable;
                     }
-                    if (includeQueryColumns)
-                        yield return query.SqlBuilder;
+                    //if (includeQueryColumns)
+                    yield return query.SqlBuilder;
                 }
             }
         }
 
         #region Where
 
-        public SqlBuilder JoinEnvolvingTable(Func<SqlBuilder, ISqlColumn> Column1, Func<SqlBuilder, ISqlColumn> Column2)
+        public SqlBuilder JoinEnvolvingTable(
+           Func<SqlBuilder, ISqlColumn> LeftHand,
+           Func<SqlBuilder, ISqlColumn> RightHand
+        )
         {
-            LocalWhereConditions.Add((BuildContext x) =>
+            return JoinEnvolvingTable(
+                (SqlBuilder x) => [LeftHand(x)] ,
+                (SqlBuilder x) => [LeftHand(x)] 
+            );
+        }
+
+        public SqlBuilder JoinEnvolvingTable(
+            Func<SqlBuilder, IEnumerable<ISqlColumn>> LeftHand,
+            Func<SqlBuilder, IEnumerable<ISqlColumn>> RightHand
+        )
+        {
+            LocalWhereConditions.Add((BuildContext context) =>
             {
-                var tables = x.TableAlias.Skip(1).ToArray();
-                var outerTable = x.RenderedTables.First(x => x.Alias == tables[0]);
-                var expression1 = string.Format(Column1(this).GetWhereExpression(x), x.TableAlias.ToArray());
-                var expression2 = string.Format(Column2(outerTable).GetWhereExpression(x), tables);
+                var rightSqlBuilder = context.CurrentSource is SqlBuilder a ? a : new SqlBuilderResolver(context.CurrentTableAlias);
 
-                var predicate = string.Format(SQLOperator.Equals.GetOperatorPredicate(), expression2);
+                var leftSqlBuilder = context.Sources.ElementAtOrDefault(1) is SqlBuilder b ? b : new SqlBuilderResolver(context.CurrentTableAlias);
 
-                return $"{expression1} {predicate}";
+                var leftColumns = LeftHand(leftSqlBuilder);
+                var rightColumns = RightHand(rightSqlBuilder);
+
+                List<string> predicates = [];
+
+                if (leftColumns.Count() != rightColumns.Count())
+                    throw new InvalidOperationException("Diferente número de columnas");
+
+                for (var i = 0; i < leftColumns.Count(); i++)
+                {
+                    var left_predicate = leftColumns
+                        .ElementAt(i)
+                        .GetSqlExpression(context, 0);
+
+                    var right_predicate = rightColumns
+                        .ElementAt(i)
+                        .GetSqlExpression(context, 0 + 1);
+
+                    predicates.Add($"{left_predicate} = {right_predicate}");
+                }
+
+                return string.Join(" AND ", [.. predicates]);
             });
+            return this;
+        }
+
+        public SqlBuilder Where<T>(bool condition, Func<SqlBuilder, ISqlColumn> sqlColumnSelector, T? Value, SQLOperator @operator = SQLOperator.AutoEquals)
+        {
+            if (condition)
+                Where(sqlColumnSelector, Value, @operator);
+
             return this;
         }
 
@@ -338,6 +378,7 @@ namespace HuskyKit.Sql.Sources
         /// Gets the list of subqueries used in the query.
         /// </summary>
         internal List<SqlBuilder> LocalWithTables { get; } = [];
+
         /// <summary>
         /// Builds the SQL query string based on the provided options.
         /// </summary>
@@ -765,12 +806,12 @@ namespace HuskyKit.Sql.Sources
 
             sb.Append($"SELECT ");
 
-            bool first = true;
+            bool first = true, toprendered = false;
 
             if (!string.IsNullOrEmpty(topSql))
             {
                 sb.AppendLine(topSql);
-                first = false;
+                toprendered = true;
             }
 
 
