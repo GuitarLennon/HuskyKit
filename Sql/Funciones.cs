@@ -28,6 +28,32 @@ namespace HuskyKit.Sql
         public static SqlColumn Count(this string expression) =>
             $"Count([{expression}])".As($"Count_{expression}", true);
 
+
+        /// <summary>
+        /// Genera la expresión SQL `Count(columna)`.
+        /// </summary>
+        /// <param name="expression">El nombre de la columna para aplicar `Count`.</param>
+        /// <returns>Un <see cref="SqlColumn"/> representando `Count(columna)`.</returns>
+        public static SqlColumn Count(this SqlColumn column) =>
+            $"Count({column.Expression})".As($"Count_{column.Name}", true);
+
+        /// <summary>
+        /// Genera la expresión SQL `Count(Distinct columna)`.
+        /// </summary>
+        /// <param name="expression">El nombre de la columna para aplicar `Count distinct`.</param>
+        /// <returns>Un <see cref="SqlColumn"/> representando `Count(Distinct columna)`.</returns>
+        public static SqlColumn CountDistinct(this string expression) =>
+            $"Count(Distinct [{expression}])".As($"Count_{expression}", true);
+
+        /// <summary>
+        /// Genera la expresión SQL `Count(Distinct columna)`.
+        /// </summary>
+        /// <param name="expression">El nombre de la columna para aplicar `Count distinct`.</param>
+        /// <returns>Un <see cref="SqlColumn"/> representando `Count(Distinct columna)`.</returns>
+        public static SqlColumn CountDistinct(this SqlColumn column) =>
+            $"Count(Distinct {column.Expression})".As($"Count_{column.Name}", true);
+
+
         /// <summary>
         /// Genera la expresión SQL `Round(expression, precision)`.
         /// </summary>

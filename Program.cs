@@ -180,8 +180,6 @@ string test6()
             )
             .From(indicadores)
             .Top(2)
-            .JoinEnvolvingTable(x => x["Clave"], x => x["Clave"])
-            .JoinEnvolvingTable(x => x["Tipo"], x => x["Tipo"])
             .WhereIsNotNull(x => x["Indicador"])
             .Where(x => x["Clave indicador"], Name);
 
@@ -190,8 +188,10 @@ string test6()
             Name,
             SortName = $"Sort.{Name}",
             JsonName = $"Indicadores.{Name}",
-            json = builder.AsColumn($"Indicadores.{Name}", ForJsonOptions.PATH),
+            json = builder.AsColumn($"Indicadores.{Name}", ForJsonOptions.PATH)
+                .JoinEnvolvingTable(x => [x["Clave"], x["Tipo"]], x => [x["Clave"], x["Tipo"]]),
             order = builder.AsValueColumn("Indicador", $"Sort.{Name}")
+                .JoinEnvolvingTable(x => [x["Clave"], x["Tipo"]], x => [x["Clave"], x["Tipo"]]),
         };
     };
 

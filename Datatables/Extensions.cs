@@ -24,7 +24,7 @@ namespace HuskyKit.Datatables
             List<SqlColumn> columns = [];
             List<string> filters = [];
 
-            foreach (var column in dTRequest.Columns)
+            foreach (var column in dTRequest.Columns.Distinct())
             {
                 var sqlColumn = column.GetColumn(sort);
 

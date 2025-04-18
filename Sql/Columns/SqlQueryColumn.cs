@@ -111,5 +111,63 @@ namespace HuskyKit.Sql.Columns
         /// <returns>The SELECT SQL expression for the column.</returns>
         public override string GetSelectExpression(BuildContext context)
             => $"{GetSqlExpression(context)} AS [{Name}]";
+
+
+        public SqlQueryColumn JoinEnvolvingTable(
+           Func<SqlBuilder, ISqlColumn> ColumnSelector
+        )
+        {
+            return JoinEnvolvingTable(
+                (SqlBuilder x) => [ColumnSelector(x)],
+                (SqlBuilder x) => [ColumnSelector(x)]
+            );
+        }
+
+        public SqlQueryColumn JoinEnvolvingTable(
+           Func<SqlBuilder, ISqlColumn> LeftHand,
+           Func<SqlBuilder, ISqlColumn> RightHand
+        )
+        {
+            return JoinEnvolvingTable(
+                (SqlBuilder x) => [LeftHand(x)],
+                (SqlBuilder x) => [LeftHand(x)]
+            );
+        }
+
+        public SqlQueryColumn JoinEnvolvingTable(
+            Func<SqlBuilder, IEnumerable<ISqlColumn>> innerSelector,
+            Func<SqlBuilder, IEnumerable<ISqlColumn>> outerSelector
+        )
+        {
+            SqlBuilder.LocalWhereConditions.Add((BuildContext context) =>
+            {
+                var outerSqlBuilder = context.Sources.ElementAtOrDefault(1) is SqlBuilder b ? b : 
+                                    new SqlBuilderResolver(context.CurrentTableAlias);
+
+                var innerColumns = innerSelector(SqlBuilder);
+                var outerColumns = outerSelector(outerSqlBuilder);
+
+                List<string> predicates = [];
+
+                if (innerColumns.Count() != outerColumns.Count())
+                    throw new InvalidOperationException("Diferente número de columnas");
+
+                for (var i = 0; i < innerColumns.Count(); i++)
+                {
+                    var left_predicate = innerColumns
+                        .ElementAt(i)
+                        .GetSqlExpression(context, 0);
+
+                    var right_predicate = outerColumns  
+                        .ElementAt(i)
+                        .GetSqlExpression(context, 0 + 1);
+
+                    predicates.Add($"{left_predicate} = {right_predicate}");
+                }
+
+                return string.Join(" AND ", [.. predicates]);
+            });
+            return this;
+        }
     }
 }

@@ -66,12 +66,23 @@ namespace HuskyKit.Sql.Sources
             Columns = [.. columns];
         }
 
+        public TableJoin(JoinTypes joinTypes,
+                ISqlSource sqlSource,
+                ISqlExpression predicate,
+                params ISqlColumn[] columns)
+        {
+            this.JoinType = joinTypes;
+            this.SqlSource = sqlSource;
+            Predicate = predicate;
+            Columns = [.. columns];
+        }
+
         public string GetSqlExpression(BuildContext context, int targetindex = 0)
         {
             string returning = $"{context.IndentToken}{JoinType} JOIN ";
 
-            using (context.Indent(SqlSource))
-            {
+            //using (context.Indent(SqlSource))
+            //{
                 if (SqlSource is SqlBuilder b)
                     if (context.RenderedTables.Add(b))
                     {
@@ -88,7 +99,7 @@ namespace HuskyKit.Sql.Sources
 
                 returning += " ON " + string.Format(Predicate.GetSqlExpression(context, targetindex), context.TableAlias);
 
-            }
+            //}
 
             return returning;
         }

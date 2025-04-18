@@ -9,7 +9,7 @@ using HuskyKit.Sql.Columns;
 
 namespace HuskyKit.Datatables
 {
-    public class ColumnItem
+    public class ColumnItem : IEquatable<ColumnItem>
     {
         public SqlColumn GetColumn(bool useOrder = true)
         {
@@ -73,5 +73,8 @@ namespace HuskyKit.Datatables
 
             return hash.ToHashCode();
         }
+
+        public bool Equals(ColumnItem? other)
+            => GetHashCode().Equals(other?.GetHashCode());
     }
 }

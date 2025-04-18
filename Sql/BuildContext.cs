@@ -24,11 +24,16 @@ namespace HuskyKit.Sql
         /// </summary>
         public ISqlSource CurrentSource => StackList.Peek().Source;
 
-
         /// <summary>
         /// Gets or sets the current table alias being used in the query.
         /// </summary>
         public string CurrentTableAlias => CurrentSource.Alias;
+
+        /// <summary>
+        /// Checks if the current member has a valid alias
+        /// </summary>
+        public bool CurrentHasAlias => CurrentSource.HasAlias;
+
 
         /// <summary>
         /// Gets the current depth of the query context, based on the number of options in the stack.
@@ -54,7 +59,7 @@ namespace HuskyKit.Sql
         /// <summary>
         /// Gets the table aliases
         /// </summary>
-        public IEnumerable<string> TableAlias => StackList.Select(x => x.Source.Alias);
+        public string[] TableAlias => StackList.Select(x => x.Source.Alias).ToArray();
 
         /// <summary>
         /// Gets the table sources
@@ -80,6 +85,10 @@ namespace HuskyKit.Sql
             return new(Unindent);
         }
 
+        /// <summary>
+        /// Unindent Class
+        /// </summary>
+        /// <param name="unindent"></param>
         public class UnindentClass(Action unindent) : IDisposable
         {
             //public Action Unindent => unindent;
@@ -96,6 +105,11 @@ namespace HuskyKit.Sql
         private void Unindent()
         {
             StackList.TryPop(out _);
+        }
+
+        public override string ToString()
+        {
+            return $"{nameof(BuildContext)} [ {nameof(Depth)}: {Depth} {nameof(TableAlias)}: {string.Join(',', value: TableAlias)} ]";
         }
     }
 }

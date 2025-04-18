@@ -42,5 +42,15 @@
             g.Length = Length ?? g.Length;
             return g;
         }
+
+        public override string ToString()
+        {
+            return $"{nameof(BuildOptions)} [" +
+                $"Skip: {Skip}, " +
+                $"Length: {Length}, " +
+                $"ForJson: {ForJson}, " +
+                $"Indentation: {Indentation}" + 
+                "]";
+        }
     }
 }

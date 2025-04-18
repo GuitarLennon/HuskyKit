@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Data.SqlTypes;
 using System.Dynamic;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Xml.Linq;
@@ -93,6 +94,7 @@ namespace HuskyKit.Sql
         public static string BuildForJson(this SqlBuilder sqlBuilder, ForJsonOptions forJsonOptions)
         {
             var new_builder = SqlBuilder
+                .With(sqlBuilder.WithTables.Select(x => x.Value).ToArray())
                 .Select(
                     sqlBuilder.AsColumn("TEXT", forJson: forJsonOptions)
                 );
@@ -221,8 +223,17 @@ namespace HuskyKit.Sql
                                               int? skip = null, int? take = null, ForJsonOptions? forJson = default)
         {
             SqlQueryColumn sqlColumn =
-
-                new(sqlBuilder.AsSubquery(alias),
+                new(
+                    SqlBuilder.With(sqlBuilder.WithTables.Select(x => x.Value).ToArray())
+                              .Select(sqlBuilder.Columns.Select(x => x.Column).ToArray())
+                              .From(sqlBuilder.From!)
+                              .Join(sqlBuilder.Joins.Select(x =>
+                                new TableJoin(x.JoinType, x.SqlSource,
+                                    predicate: x.Predicate,
+                                    columns: [.. x.Columns])
+                               ).ToArray())
+                              .Where(sqlBuilder.WhereConditions),
+                    //sqlBuilder.AsSubquery(alias),
                     alias,
                     order,
                     forJson,
@@ -257,8 +268,18 @@ namespace HuskyKit.Sql
         /// <summary>
         /// Wraps the builder as a subquery with a given alias.
         /// </summary>
-        public static SqlBuilder AsSubquery(this SqlBuilder builder, string? alias = null)
-            => new(builder, alias);
+        public static SqlBuilder AsSubquery(
+            this SqlBuilder builder, 
+            string? alias = null
+        )
+        {
+            if (!builder.Columns.Any())
+                throw new InvalidOperationException("No se declararon columnas");
+
+            var _builder = new SqlBuilder (builder, alias);
+
+            return _builder;
+        }
 
         /// <summary>
         /// Wraps the builder as a subquery with a given alias and adds table joins.
@@ -279,6 +300,11 @@ namespace HuskyKit.Sql
         {
             sqlBuilder.TableColumns.Clear();
             sqlBuilder.TableColumns.AddRange(columns);
+
+            if (sqlBuilder.Columns.Count() == 0)
+                throw new 
+                    InvalidOperationException("No se ha seleccionado ninguna columna");
+
             return sqlBuilder;
         }
 
@@ -316,6 +342,17 @@ namespace HuskyKit.Sql
                               Func<SqlBuilder, ISqlColumn> columnSelector,
                               params ISqlColumn[] columns)
             => Join(sqlBuilder, joinType, (ISqlSource)joinTable, (SqlBuilder x) => [columnSelector(x)], columns);
+
+
+        public static SqlBuilder InnerJoin(this SqlBuilder sqlBuilder, SqlTable joinTable,
+                            Func<SqlBuilder, ISqlColumn> columnSelector,
+                            params ISqlColumn[] columns)
+            => Join(sqlBuilder, JoinTypes.INNER, (ISqlSource)joinTable, (SqlBuilder x) => [columnSelector(x)], columns);
+
+        public static SqlBuilder LeftJoin(this SqlBuilder sqlBuilder, SqlTable joinTable,
+                            Func<SqlBuilder, ISqlColumn> columnSelector,
+                            params ISqlColumn[] columns)
+            => Join(sqlBuilder, JoinTypes.LEFT, (ISqlSource)joinTable, (SqlBuilder x) => [columnSelector(x)], columns);
 
 
         /// <summary>
@@ -384,6 +421,20 @@ namespace HuskyKit.Sql
             return sqlBuilder;
         }
 
+
+        /// <summary>
+        /// Selects all columns.
+        /// </summary>
+        public static SqlBuilder SelectWhere(this SqlBuilder sqlBuilder, Func<ISqlColumn, bool> selector)
+        {
+            var columns = sqlBuilder.TableColumns.Where(selector).ToArray();
+
+            sqlBuilder.CleanSelect(columns);
+
+            return sqlBuilder;
+        }
+
+
         /// <summary>
         /// Selects all columns.
         /// </summary>
@@ -398,6 +449,13 @@ namespace HuskyKit.Sql
         /// </summary>
         public static SqlColumn As(this object? expression, string alias, bool aggregate = false, ColumnOrder? order = default)
             => new(expression, alias, aggregate, order);
+
+
+        /// <summary>
+        /// Creates a SQL column with an alias, optional aggregation, and ordering.
+        /// </summary>
+        public static SqlColumn Aggregate(this string expression, string? alias = null)
+            => new(expression, alias ?? expression, true);
 
         /// <summary>
         /// Conditionally adds columns to the SELECT clause.
@@ -429,7 +487,7 @@ namespace HuskyKit.Sql
             }
             return sqlBuilder;
         }
-         
+
         public static SqlBuilder Where(this SqlBuilder sqlBuilder, bool applyCondition, params string[] conditions)
         {
             if (applyCondition)
@@ -498,6 +556,23 @@ namespace HuskyKit.Sql
             sqlBuilder.Alias = sourceAlias;
             return sqlBuilder;
         }
+
+
+        /// <summary>
+        /// Sets or replaces the source from this table
+        /// </summary>
+        /// <param name="sqlBuilder">this sql builder</param>
+        /// <param name="source">new source to replace from</param>
+        /// <returns></returns>
+        public static SqlBuilder FromIndexedView(this SqlBuilder sqlBuilder, SqlTable source, string? Alias = null)
+        {
+            sqlBuilder.From = source;
+            sqlBuilder.Alias = Alias ?? source.Alias;
+            source.NoExpand = true;
+            return sqlBuilder;
+        }
+        //WITH (NOEXPAND)
+
 
         /// <summary>
         /// Sets or replaces the top property

@@ -56,7 +56,7 @@ namespace HuskyKit.Sql.Columns
 
             //TODO: Fix this
             var orderClause = _orderBy.Count != 0
-                ? $"ORDER BY {string.Join(", ", _orderBy.Select(x => $"[{x.Expression}] {x.Direction}"))} "
+                ? $"ORDER BY {string.Join(", ", _orderBy.Select(x => x.GetSqlExpression(context) ))} "
                 : "";
 
             return $"{_function}() OVER ({partitionClause}{orderClause.TrimEnd()})";

@@ -7,7 +7,7 @@ namespace HuskyKit.Sql.Columns
     /// <summary>
     /// Representa una columna en una consulta SQL, proporcionando soporte para alias, agregados, y ordenación.
     /// </summary>
-    public class SqlColumn : ISqlColumn
+    public partial class SqlColumn : ISqlColumn
     {
         /// <summary>
         /// Inicializa una nueva instancia de la clase <see cref="SqlColumn"/> utilizando solo el nombre original de la columna.
