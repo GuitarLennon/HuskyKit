@@ -52,7 +52,7 @@ namespace HuskyKit.Sql.Columns
             show_name = AsAlias;
             Order.Apply(order);
 
-            Aggregate = false;
+            IsAggregate = false;
             ForJson = forJson;
             Skip = skip;
             Length = length;

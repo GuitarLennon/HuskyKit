@@ -9,9 +9,10 @@ using System.Threading.Tasks;
 namespace HuskyKit.Sql.Sources
 {
 
+
     public partial class SqlBuilder : ISqlSource
     {
-                /// <summary>
+        /// <summary>
         /// Builds the SQL query string based on the provided options.
         /// </summary>
         /// <param name="options">The build options for the query.</param>
@@ -21,7 +22,7 @@ namespace HuskyKit.Sql.Sources
             var context = new BuildContext(this, options ?? new BuildOptions());
 
 #if DEBUG
-            Console.WriteLine($"Iniciando Build con options: <{options}> y alias: <{context}>");
+            //Console.WriteLine($"Iniciando Build con options: <{options}> y alias: <{context}>");
 #endif
 
             var result = Build(context);
@@ -38,7 +39,7 @@ namespace HuskyKit.Sql.Sources
         public string Build(BuildContext context)
         {
             if (!Columns.Any())
-                throw new InvalidOperationException($"No columns specified in [{From}] [{Alias}]");
+                throw new InvalidOperationException($"No columns specified in [{From_Source}] [{Alias}]");
 
             var sb = new StringBuilder().DebugComment($"Build({ID}, Alias:{Alias}, Depth:{context.Depth})");
 
@@ -63,6 +64,9 @@ namespace HuskyKit.Sql.Sources
             DetermineWhere(sb, context);
             DetermineGroupBy(sb, context);
 
+            DetermineSetOperation(sb, context);
+
+
             orderSqlWriter(sb);
 
             if (context.CurrentOptions.ForJson.HasValue)
@@ -75,6 +79,7 @@ namespace HuskyKit.Sql.Sources
 
             return sb.ToString();
         }
+
 
         /// <summary>
         /// Elimina todas las cláusulas de ordenación (`ORDER BY`) actuales de la consulta SQL.
@@ -194,10 +199,10 @@ namespace HuskyKit.Sql.Sources
             foreach (var table in LocalWithTables)
             {
                 foreach (var subtable in table.GetNestedBuilders(includeQueryColumns))
-                    if (subtable.From != null)
+                    if (subtable.From_Source != null)
                         yield return subtable;
 
-                if (table.From != null)
+                if (table.From_Source != null)
                     yield return table;
             }
 
@@ -325,10 +330,10 @@ namespace HuskyKit.Sql.Sources
         /// <param name="context">The build context for constructing the query.</param>
         private Action<StringBuilder> DetermineFrom(BuildContext context)
         {
-            if (From == null)
+            if (From_Source == null)
                 return sb => sb.DebugComment("No from rendered");
 
-            var renderFrom = From switch
+            var renderFrom = From_Source switch
             {
                 SqlBuilder sqlbuilder => RenderSqlBuilderFrom(context, sqlbuilder),
                 _ => RenderSimpleFrom(context)
@@ -382,7 +387,7 @@ namespace HuskyKit.Sql.Sources
             {
                 sb.Append(context.IndentToken);
                 sb.DebugComment($"RenderSimpleFrom({ID})");
-                sb.AppendLine($"FROM {From!.Build(context)}");
+                sb.AppendLine($"FROM {From_Source!.Build(context)}");
             };
         }
 
@@ -405,11 +410,11 @@ namespace HuskyKit.Sql.Sources
         /// <param name="context">The build context for constructing the query.</param>
         private void DetermineGroupBy(StringBuilder sb, BuildContext context)
         {
-            if (!Columns.Any(x => x.Column.Aggregate))
+            if (!Columns.Any(x => x.Column.IsAggregate))
                 return;
 
             var groupByColumns = Columns
-                .Where(c => !c.Column.Aggregate)
+                .Where(c => !c.Column.IsAggregate)
                 .Select(c => c.Column.GetGroupByExpression(context /*.SetCurrentTable(c.TableAlias)*/ ));
 
             if (!groupByColumns.Any()) return;
@@ -461,57 +466,6 @@ namespace HuskyKit.Sql.Sources
         }
 
         /// <summary>
-        /// Appends the SELECT clause to the query, including optional TOP clause.
-        /// </summary>
-        /// <param name="sb">The StringBuilder to append the clause to.</param>
-        /// <param name="topSql">The TOP clause for limiting the number of rows.</param>
-        /// <param name="context">The build context for constructing the query.</param>
-        private void DetermineSelect(StringBuilder sb, string topSql, BuildContext context)
-        {
-            sb.Append(context.IndentToken);
-
-            sb.DebugComment(nameof(DetermineSelect));
-
-            sb.Append($"SELECT ");
-
-            bool first = true;
-
-            if (!string.IsNullOrEmpty(topSql))
-            {
-                sb.AppendLine(topSql);
-            }
-            else
-            {
-                sb.AppendLine();
-            }
-
-
-            foreach (var column in TableColumns)
-            {
-                sb.Append(context.IndentToken)
-                    .Append(first, "   ")
-                    .Append(!first, "  ,")
-                    .AppendLine(column.GetSelectExpression(context));
-
-                first = false;
-            }
-
-            foreach (var join in Joins)
-                using (context.Indent(join.SqlSource))
-                {
-                    foreach (var column in join.Columns)
-                    {
-                        sb.Append(context.IndentToken)
-                            .Append(first, "   ")
-                            .Append(!first, "  ,")
-                            .AppendLine(column.GetSelectExpression(context));
-
-                        first = false;
-                    }
-                }
-        }
-
-        /// <summary>
         /// Appends the WHERE clause to the query based on the specified conditions.
         /// </summary>
         /// <param name="sb">The StringBuilder to append the clause to.</param>
@@ -539,6 +493,18 @@ namespace HuskyKit.Sql.Sources
             }
         }
 
+        private bool NeedsToBeRenderedAsWith =>
+            From_Source is not SqlTable ||
+            Columns.Any(x =>
+                x.Column is not SqlColumn sq ||
+                !sq.IsMappedToColumn ||
+                sq.IsAggregate
+            ) ||
+            SetOperations.Count > 0 ||
+            Length.HasValue ||
+            Skip.HasValue ||
+            OrderByClauses.Any();
+
         /// <summary>
         /// Appends the WITH clause to the query for CTEs (Common Table Expressions).
         /// </summary>
@@ -559,33 +525,37 @@ namespace HuskyKit.Sql.Sources
             {
 
                 //This table has not been rendered
-                if (context.RenderedTables.Add(Table))
-                {
-                    string outerTableName = Table.Alias;
+                if (!context.RenderedTables.Add(Table))
+                    continue;
 
-                    if (context.RenderedTables.Any(x => x != Table && x.Alias == Table.Alias))
-                    {   //This CTE name has been used
-                        sb.Comment($"Table with alias {Table.Alias} already rendered");
-                        outerTableName = $"{Table.Alias}-{Table.ID}";
-                        sb.Comment($"Renaming to {Table.Alias}");
-                    }
+                //if (!Table.NeedsToBeRenderedAsWith)
+                    //continue;
 
-                    if (i++ > 0) sb.Append(',');
+                string outerTableName = Table.Alias;
 
-                    sb.AppendLine($"[{outerTableName}] AS (");
-
-                    using (context.Indent(Table))
-                    {
-
-                        sb.AppendLine($"{Table.Build(context)}");
-
-                        Table.Alias = outerTableName;
-
-                    }
-
-                    sb.AppendLine(")");
+                if (context.RenderedTables.Any(x => x != Table && x.Alias == Table.Alias))
+                {   //This CTE name has been used
+                    sb.Comment($"Table with alias {Table.Alias} already rendered");
+                    outerTableName = $"{Table.Alias}-{Table.ID}";
+                    sb.Comment($"Renaming to {Table.Alias}");
                 }
+
+                if (i++ > 0) sb.Append(',');
+
+                sb.AppendLine($"[{outerTableName}] AS (");
+
+                sb.DebugComment($"NeedsToBeRenderedAsWith: {Table.NeedsToBeRenderedAsWith}");
+
+                using (context.Indent(Table))
+                {
+                    sb.AppendLine($"{Table.Build(context)}");
+
+                    Table.Alias = outerTableName;
+                }
+
+                sb.AppendLine(")");
             }
+
         }
 
         private IEnumerable<SqlBuilder> GetNestedSubqueries(bool includeQueryColumns)
@@ -596,7 +566,7 @@ namespace HuskyKit.Sql.Sources
                 {
                     foreach (var subtable in query.SqlBuilder.GetNestedBuilders(includeQueryColumns))
                     {
-                        if (subtable.From != null /* && subtable.WhereConditions.Any() */)
+                        if (subtable.From_Source != null /* && subtable.WhereConditions.Any() */)
                             yield return subtable;
                     }
                     //if (includeQueryColumns)

@@ -33,7 +33,7 @@ namespace HuskyKit.Sql.Columns
             show_name = AsAlias;
             Expression = $"[{{0}}].[{rawName}]";
             Order.Apply(order);
-            Aggregate = aggregate;
+            IsAggregate = aggregate;
         }
 
         /// <summary>
@@ -47,7 +47,7 @@ namespace HuskyKit.Sql.Columns
         {
             raw_name = null;
             show_name = AsAlias;
-            Aggregate = aggregate;
+            IsAggregate = aggregate;
             Order.Apply(order);
             Expression = (expression?.ToString() ?? $"null");// + $" AS [{AsAlias}]";
         }

@@ -6,7 +6,7 @@
         public SqlWildCardColumn(bool AllColumns = false)
         {
             Order.Reset();
-            Aggregate = false;
+            IsAggregate = false;
             Expression = AllColumns ? "*" : "[{0}].*";
         }
 

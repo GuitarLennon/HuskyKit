@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HuskyKit.Pruebas", "..\Husk
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HuskyKit.Analysis", "..\HuskyKit.Analysis\HuskyKit.Analysis.csproj", "{B827EE2B-A71E-4935-9EA5-48307ED52D89}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HuskyKit.Dapper", "..\HuskyKit.Dapper\HuskyKit.Dapper.csproj", "{DFB89283-9F3F-41C6-8BB9-3B8CF5AF63CA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{B827EE2B-A71E-4935-9EA5-48307ED52D89}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B827EE2B-A71E-4935-9EA5-48307ED52D89}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B827EE2B-A71E-4935-9EA5-48307ED52D89}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DFB89283-9F3F-41C6-8BB9-3B8CF5AF63CA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DFB89283-9F3F-41C6-8BB9-3B8CF5AF63CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DFB89283-9F3F-41C6-8BB9-3B8CF5AF63CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DFB89283-9F3F-41C6-8BB9-3B8CF5AF63CA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

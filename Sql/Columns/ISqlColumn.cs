@@ -3,39 +3,6 @@
 namespace HuskyKit.Sql.Columns
 {
 
-    public partial class SqlColumn 
-    {
-        /// <summary>
-        /// Implicitly converts a string to a SqlColumnAbstract instance.
-        /// </summary>
-        /// <param name="column">The name of the column as a string.</param>
-        /// <returns>A new SqlColumn instance.</returns>
-        public static implicit operator SqlColumn(string column) => new SqlColumn(column);
-
-        /// <summary>
-        /// Implicitly converts a tuple of (string value, string alias) to a SqlColumnAbstract instance.
-        /// </summary>
-        /// <param name="column">A tuple containing the column name and alias.</param>
-        /// <returns>A new SqlColumn instance with the specified alias.</returns>
-        public static implicit operator SqlColumn((string value, string AsAlias) column) => new SqlColumn(column.value, column.AsAlias);
-
-        /// <summary>
-        /// Implicitly converts a tuple of (object value, string alias) to a SqlColumnAbstract instance.
-        /// </summary>
-        /// <param name="column">A tuple containing the column value and alias.</param>
-        /// <returns>A new SqlColumn instance with the specified alias.</returns>
-        public static implicit operator SqlColumn((object value, string AsAlias) column)
-        => new SqlColumn(column.value, column.AsAlias);
-
-        /// <summary>
-        /// Implicitly converts a tuple of (object value, string alias, bool groupBy) to a SqlColumnAbstract instance.
-        /// </summary>
-        /// <param name="column">A tuple containing the column value, alias, and groupBy flag.</param>
-        /// <returns>A SqlColumn instance configured with grouping.</returns>
-        public static implicit operator SqlColumn((object value, string AsAlias, bool groupBy) column) => column.value.As(column.AsAlias, column.groupBy);
-
-    }
-
     /// <summary>
     /// Abstract class representing a SQL column, providing methods for generating SQL expressions.
     /// </summary>
@@ -79,15 +46,22 @@ namespace HuskyKit.Sql.Columns
 
         public bool UsesColumnAlias => show_name != raw_name;
 
+        public bool IsSelectable { get; set; } = true;
+
         /// <summary>
         /// Name to display for the column (overrides raw_name if set).
         /// </summary>
         protected string? show_name;
 
+        public ISqlColumn Hidden() {
+            IsSelectable = false;
+            return this;
+        }
+
         /// <summary>
         /// Indicates whether the column is part of an aggregate function.
         /// </summary>
-        public bool Aggregate { get; set; }
+        public bool IsAggregate { get; set; }
 
         /// <summary>
         /// Gets or sets the display name of the column. Defaults to raw_name if not set.

@@ -25,7 +25,37 @@ namespace HuskyKit.Sql.Sources
             return this;
         }
 
-        public SqlBuilder Where<T>(Func<SqlBuilder, ISqlColumn> sqlColumnSelector, T? Value, SQLOperator @operator = SQLOperator.AutoEquals)
+        public SqlBuilder IfWhere<T>(
+            bool condition,
+            Func<SqlBuilder, ISqlColumn> sqlColumnSelector, 
+            T? Value,
+            SQLOperator @operator = SQLOperator.AutoEquals)
+        {
+            if (!condition)
+                return this;
+
+            string sqloperator;
+
+            if (Value is not string && Value is IEnumerable E)
+            {
+                sqloperator = @operator.GetOperator(true);
+            }
+            else
+            {
+                sqloperator = @operator.GetOperator(false);
+            }
+
+            LocalWhereConditions.Add((BuildContext x) =>
+            {
+                var g = $"{sqlColumnSelector(this).GetWhereExpression(x)} {sqloperator} {Value.GetParameterValue()}";
+                return g;
+            });
+
+            return this;
+        }
+
+        public SqlBuilder Where<T>(Func<SqlBuilder, ISqlColumn> sqlColumnSelector, T? Value,
+                                   SQLOperator @operator = SQLOperator.AutoEquals)
         {
             string sqloperator;
 

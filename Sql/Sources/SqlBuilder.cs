@@ -25,7 +25,7 @@ namespace HuskyKit.Sql.Sources
 
         private string? m_custom_alias;
 
-        bool ISqlSource.HasAlias => !string.IsNullOrWhiteSpace(m_custom_alias) || (From?.HasAlias ?? false);
+        bool ISqlSource.HasAlias => !string.IsNullOrWhiteSpace(m_custom_alias) || (From_Source?.HasAlias ?? false);
 
         /// <summary>
         /// Gets or sets the alias for the SQL source.
@@ -36,13 +36,13 @@ namespace HuskyKit.Sql.Sources
             {
                 if (string.IsNullOrWhiteSpace(m_custom_alias))
                 {
-                    if (From is null)
+                    if (From_Source is null)
                         return $"No-alias-{ID}";
 
-                    if (From is SqlTable table)
+                    if (From_Source is SqlTable table)
                         return table.Alias;
 
-                    return From.Alias;
+                    return From_Source.Alias;
                 }
                 return m_custom_alias;
 
@@ -62,7 +62,7 @@ namespace HuskyKit.Sql.Sources
             {
                 foreach (var column in TableColumns)
                 {
-                    yield return (From?.Alias ?? Alias, column);
+                    yield return (From_Source?.Alias ?? Alias, column);
                 }
 
                 foreach (var join in Joins)
@@ -78,7 +78,13 @@ namespace HuskyKit.Sql.Sources
         /// <summary>
         /// Gets or sets the SQL source object used to build the query.
         /// </summary>
-        public ISqlSource? From { get; set; }
+        public ISqlSource? From_Source { get; set; }
+
+        /// <summary>
+        /// Gets or sets the SQL builder that represents the set operator
+        /// </summary>
+        public List<SetOperation> SetOperations { get; set; } = [];
+
 
         /// <summary>
         /// Gets the list of table joins included in the query.
@@ -170,7 +176,7 @@ namespace HuskyKit.Sql.Sources
 
                 if (a != null) return a;
 
-                if (From is SqlBuilder b)
+                if (From_Source is SqlBuilder b)
                     // Column comes from subquery
                     return b.Columns.First(x => x.Column.Name.Equals(name)).Column;
                 else

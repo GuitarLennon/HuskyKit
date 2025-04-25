@@ -8,6 +8,8 @@ namespace HuskyKit.Contracts
         /// Ejecuta la consulta SQL y devuelve los resultados como un arreglo de diccionarios por fila.
         /// </summary>
         Task<SqlResult> ExecuteAsync(string sql, CancellationToken cancellationToken = default);
+
+
     }
 }
 

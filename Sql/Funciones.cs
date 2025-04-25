@@ -176,6 +176,14 @@ namespace HuskyKit.Sql
         /// </summary>
         /// <param name="expression">El nombre de la columna.</param>
         /// <returns>Un <see cref="SqlColumn"/> representando `Max(columna)`.</returns>
+        public static SqlColumn Max(this SqlColumn expression) =>
+            $"Max({expression.Expression})".As($"Max_{expression.Name}", true);
+
+        /// <summary>
+        /// Genera la expresión SQL `Max(columna)`.
+        /// </summary>
+        /// <param name="expression">El nombre de la columna.</param>
+        /// <returns>Un <see cref="SqlColumn"/> representando `Max(columna)`.</returns>
         public static SqlColumn Max(this string expression) =>
             $"Max([{expression}])".As($"Max_{expression}", true);
 
