@@ -10,12 +10,12 @@ namespace HuskyKit.Sql.Sources
     public partial class SqlBuilder
     {
 
-        private void DetermineSetOperation(StringBuilder sb, BuildContext context)
+        private void _DetermineSetOperation(StringBuilder sb, BuildContext context)
         {
             if (SetOperations.Count == 0)
                 return;
 
-            sb.DebugComment(nameof(DetermineSetOperation));
+            sb.DebugComment(nameof(_DetermineSetOperation));
             
             foreach (var item in SetOperations)
             {

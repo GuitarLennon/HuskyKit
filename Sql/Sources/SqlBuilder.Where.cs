@@ -1,4 +1,5 @@
-﻿using HuskyKit.Sql.Columns;
+﻿using HuskyKit.Extensions;
+using HuskyKit.Sql.Columns;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -10,6 +11,34 @@ namespace HuskyKit.Sql.Sources
 {
     public partial class SqlBuilder : ISqlSource
     {
+
+        /// <summary>
+        /// Appends the WHERE clause to the query based on the specified conditions.
+        /// </summary>
+        /// <param name="sb">The StringBuilder to append the clause to.</param>
+        private void _DetermineWhere(StringBuilder sb, BuildContext context)
+        {
+            if (!WhereConditions.Any()) return;
+
+
+            bool first = true;
+            foreach (var whereCondition in WhereConditions)
+            {
+                sb.Append(context.IndentToken);
+
+                if (first)
+                {
+                    sb.DebugComment($"{nameof(_DetermineWhere)}");
+                    sb.Append("WHERE ");
+                }
+                else
+                    sb.Append("  AND ");
+
+                sb.AppendLine(string.Format(whereCondition(context), context.CurrentTableAlias));
+
+                first = false;
+            }
+        }
 
         public SqlBuilder Where<T>(bool condition, Func<SqlBuilder, ISqlColumn> sqlColumnSelector, T? Value, SQLOperator @operator = SQLOperator.AutoEquals)
         {

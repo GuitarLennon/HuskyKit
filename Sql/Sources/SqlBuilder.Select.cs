@@ -17,22 +17,6 @@ namespace HuskyKit.Sql.Sources
     public partial class SqlBuilder : ISqlSource
     {
 
-        public static SqlBuilder Select(params ISqlColumn[] columns)
-        {
-            var ret = new SqlBuilder();
-
-            ret.Select(columns);
-
-            return ret;
-        }
-        public static SqlBuilder SelectAll(bool selectAll = true)
-        {
-            return new()
-            {
-                TableColumns = { new SqlWildCardColumn(selectAll) }
-            };
-        }
-
 
         /// <summary>
         /// Appends the SELECT clause to the query, including optional TOP clause.

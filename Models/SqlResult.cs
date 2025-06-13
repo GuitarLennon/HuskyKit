@@ -91,25 +91,16 @@ namespace HuskyKit.Models
             return sb.ToString();
         }
 
-        private static bool IsNumber(object value)
+        private static bool IsNumber(object? value)
         {
-            switch (Type.GetTypeCode(value.GetType()))
+            if (value is null) 
+                return false;
+
+            return Type.GetTypeCode(value.GetType()) switch
             {
-                case TypeCode.Byte:
-                case TypeCode.SByte:
-                case TypeCode.UInt16:
-                case TypeCode.UInt32:
-                case TypeCode.UInt64:
-                case TypeCode.Int16:
-                case TypeCode.Int32:
-                case TypeCode.Int64:
-                case TypeCode.Decimal:
-                case TypeCode.Double:
-                case TypeCode.Single:
-                    return true;
-                default:
-                    return false;
-            }
+                TypeCode.Byte or TypeCode.SByte or TypeCode.UInt16 or TypeCode.UInt32 or TypeCode.UInt64 or TypeCode.Int16 or TypeCode.Int32 or TypeCode.Int64 or TypeCode.Decimal or TypeCode.Double or TypeCode.Single => true,
+                _ => false,
+            };
         }
 
 
@@ -121,7 +112,7 @@ namespace HuskyKit.Models
         private static string Truncate(string value, int maxLength)
         {
             if (value.Length > maxLength)
-                return value.Substring(0, maxLength - 3) + "...";
+                return value[..(maxLength - 3)] + "...";
             return value;
         }
     }

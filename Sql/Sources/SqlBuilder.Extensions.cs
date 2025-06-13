@@ -4,6 +4,7 @@ namespace HuskyKit.Sql.Sources
 {
     public partial class SqlBuilder : ISqlSource
     {
+
         public static SqlBuilder From(ISqlSource sqlSource)
         {
             var ret = new SqlBuilder();
@@ -22,7 +23,21 @@ namespace HuskyKit.Sql.Sources
             return ret;
         }
 
+        public static SqlBuilder Select(params ISqlColumn[] columns)
+        {
+            var ret = new SqlBuilder();
 
+            ret.Select(columns);
+
+            return ret;
+        }
+        public static SqlBuilder SelectAll(bool selectAll = true)
+        {
+            return new()
+            {
+                TableColumns = { new SqlWildCardColumn(selectAll) }
+            };
+        }
         /// <summary>
         /// Creates a new SqlBuilder instance with the specified subqueries added to the WITH clause.
         /// </summary>
@@ -39,6 +54,7 @@ namespace HuskyKit.Sql.Sources
 
             return result;
         }
+
     }
 
 }

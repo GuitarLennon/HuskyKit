@@ -76,20 +76,7 @@ namespace HuskyKit.Sql.Sources
                 TableColumns.AddRange([.. g]);
             }
         }
-         
-
-        ///// <summary>
-        ///// Initializes a new instance of the SqlBuilder class with a source, alias, and optional columns.
-        ///// </summary>
-        ///// <param name="source">The SQL source object used to build the query.</param>
-        ///// <param name="alias">The alias for the SQL source in the query.</param>
-        ///// <param name="columns">Optional array of SqlColumn objects to include in the query.</param>
-        //internal SqlBuilder(ISqlSource source, string? alias, params ISqlColumn[] columns)
-        //    : this(source, alias, x => true, x => x.SqlColumn)
-        //{
-        //    TableColumns.AddRange(columns);
-        //}
-
+          
     }
 
 }
